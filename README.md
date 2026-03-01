@@ -231,7 +231,7 @@ SAIDA Enterprise includes:
 
 For enterprise licensing or hosted deployments:
 
-`contact@saida.ai`
+`hello@alefpng.com`
 
 ## Roadmap
 
