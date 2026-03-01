@@ -4,53 +4,46 @@
   <img src="assets/logo.png" alt="SAIDA.ai logo" width="180" />
 </p>
 
-
 **Strategic Artificial Intelligence for Data & Analytics**
 
-SAIDA.ai is an open-core AI intelligence engine designed to transform structured and unstructured business data into actionable executive insights.
+SAIDA.ai Core is an open-core intelligence engine designed to turn structured and unstructured business data into actionable executive insights.
 
 It combines:
 
+- Heavy data analytics pipelines
 - LLM-based reasoning
 - Retrieval-augmented generation (RAG)
-- Structured data analytics
 - Tool orchestration
 - Model routing
 - Connector abstraction
 
-SAIDA.ai is built for developers, data teams, and organizations who want to build intelligent AI systems over business data, while maintaining full architectural control.
+SAIDA Core is built for developers, data teams, and organizations that want to build intelligent systems over business data while maintaining full architectural control.
 
 ## Vision
 
-SAIDA.ai exists to bridge the gap between raw business data and strategic decision-making intelligence.
+SAIDA.ai Core exists to bridge the gap between raw business data and strategic decision-making intelligence.
 
-Instead of dashboards alone, SAIDA enables natural language reasoning over:
+Instead of dashboards alone, SAIDA enables natural language analysis over:
 
 - Financial data
-- Sales databases
-- PDFs
-- Reports
+- Sales and operational databases
+- PDFs and reports
 - Spreadsheets
 - Knowledge repositories
 
-The result is an AI engine capable of acting as a strategic analyst.
+The result is an AI engine capable of acting as a strategic analyst grounded in real data.
 
 ## Architecture Overview
 
-SAIDA.ai is modular and model-agnostic.
+SAIDA.ai Core is modular and model-agnostic.
 
 ```text
 User Query
-    ?
-Intent Routing
-    ?
-Tool Selection
-    ?
-Data Retrieval (SQL / Drive / Vector Search)
-    ?
-LLM Reasoning Layer
-    ?
-Structured Executive Output
+  -> Intent Routing
+  -> Tool Selection
+  -> Data Retrieval (Database / Local Drive / Cloud Drive / Vector Search)
+  -> Analytics + LLM Reasoning Layer
+  -> Structured Executive Output
 ```
 
 Core components:
@@ -60,33 +53,46 @@ Core components:
 - Tool Interface Layer
 - Connector Abstraction
 - Retrieval Engine
+- Analytics Engine
 - Embedding Layer
 - Vector Store Integration
 
 ## Core Capabilities
 
-### 1. Model-Agnostic Reasoning
+### 1. Heavy Data Analytics
 
-Supports multiple LLM providers:
+SAIDA Core is not only a reasoning layer. It is built to execute data-heavy analytical workflows before synthesis.
+
+It supports:
+
+- Structured query execution
+- Metric computation and aggregation
+- Cross-source data joins
+- Time-series and comparative analysis
+- Explainable analytics outputs for executive decisions
+
+### 2. Model-Agnostic Reasoning
+
+Supports multiple model providers:
 
 - OpenAI
 - Self-hosted open-weight models
 - Future provider integrations
 
-Route light tasks to smaller models and heavy reasoning to larger models.
+Route lightweight tasks to smaller models and complex tasks to larger models.
 
-### 2. Connector Framework
+### 3. Connector Framework
 
-Standardized connector interface enables integration with:
+A standardized connector interface enables integration with:
 
-- SQL databases
-- File storage systems
-- Cloud drives
+- Local drive data sources
+- Google Drive files and folders
+- SQL and warehouse databases
 - API-based services
 
-Connectors are modular and extensible.
+Connectors are modular, extensible, and tool-ready.
 
-### 3. Retrieval-Augmented Generation (RAG)
+### 4. Retrieval-Augmented Generation (RAG)
 
 - Document chunking
 - Embedding abstraction
@@ -94,7 +100,7 @@ Connectors are modular and extensible.
 - Hybrid retrieval
 - Metadata filtering
 
-### 4. Tool-Oriented Agent Design
+### 5. Tool-Oriented Agent Design
 
 SAIDA agents do not hallucinate raw numbers.
 
@@ -105,7 +111,7 @@ They:
 - Retrieve verified context
 - Generate explainable answers
 
-### 5. Multi-Model Routing
+### 6. Multi-Model Routing
 
 Lightweight models handle:
 
@@ -120,11 +126,29 @@ Heavy models handle:
 - Deep financial reasoning
 - Multi-document inference
 
+## Data Connectivity
+
+SAIDA Core is designed to connect directly to your data.
+
+Current focus:
+
+- Local drive integration for file-based analysis
+- Google Drive integration for document retrieval and processing
+- Database integration for structured analytics (SQL-first)
+
+To support these integrations, the core includes:
+
+- Connector abstraction interfaces
+- Authentication and connection hooks at the connector level
+- Tool contracts for consistent query/retrieval execution
+- Retrieval pipelines that unify documents and structured data
+
 ## What SAIDA Core Includes
 
 Open-source core provides:
 
 - Agent orchestration engine
+- Data analytics execution layer
 - Model routing layer
 - Tool abstraction framework
 - Base connector interfaces
@@ -185,12 +209,16 @@ print(response)
 
 ## Design Philosophy
 
-SAIDA.ai is built on five principles:
+SAIDA.ai Core is built on simplicity and transparency.
 
+Its core principles are:
+
+- Simplicity in architecture, workflows, and developer experience
+- Transparency in data flow, tool usage, and reasoning outputs
 - Tool-first reasoning over hallucination
+- Heavy analytics before narrative synthesis
 - Modular architecture
 - Provider independence
-- Cost-aware model routing
 - Production extensibility
 
 ## Use Cases
@@ -258,4 +286,4 @@ All contributions must align with project architecture principles.
 
 SAIDA stands for Strategic Artificial Intelligence for Data & Analytics.
 
-It is designed to move beyond dashboards into real AI-assisted executive reasoning.
+It is designed to move beyond dashboards into real AI-assisted executive reasoning grounded in analytics.
