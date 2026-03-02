@@ -84,6 +84,64 @@ python -m pytest -q
 python -m saida.benchmarking.ci_gate --suite benchmarks/suites/core_v1.json --datasets benchmarks/datasets
 ```
 
+## Python Usage Examples
+
+### Example 1: Query your local datasets
+
+```python
+from saida import SaidaAgent
+from saida.connectors.filesystem import FileSystemConnector
+from saida.utils.config import SaidaConfig
+
+config = SaidaConfig(
+    control_plane_dsn="sqlite+pysqlite:///./saida_demo.db",
+    llm_provider="mock",
+    embedding_provider="mock",
+    parquet_root="./.saida/parquet",
+)
+
+agent = SaidaAgent(config)
+agent.add_connector(FileSystemConnector("./benchmarks/datasets"))
+agent.ingest_all()
+
+result = agent.query("show revenue by quarter")
+print(result.route)
+print(result.sql)
+print(result.analytics_rows[:3])
+print(result.explanation)
+```
+
+### Example 2: Run benchmark suite in Python
+
+```python
+from saida import SaidaAgent
+from saida.connectors.filesystem import FileSystemConnector
+from saida.utils.config import SaidaConfig
+from saida.benchmarking.suite import load_benchmark_suite
+
+suite = load_benchmark_suite("benchmarks/suites/core_v1.json")
+
+agent = SaidaAgent(
+    SaidaConfig(
+        control_plane_dsn="sqlite+pysqlite:///./saida_bench.db",
+        llm_provider="mock",
+        embedding_provider="mock",
+        parquet_root="./.saida/bench-parquet",
+    )
+)
+agent.add_connector(FileSystemConnector("benchmarks/datasets"))
+agent.ingest_all()
+
+report = agent.run_benchmarks(
+    cases=suite.cases,
+    suite_name=suite.name,
+    suite_version="v1",
+    dataset_path="benchmarks/datasets",
+)
+
+print(report.scores)
+```
+
 ## SAIDA Use Cases (Developer-Focused)
 
 - Executive KPI copilots for quarterly reviews
