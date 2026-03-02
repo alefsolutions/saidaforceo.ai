@@ -77,12 +77,37 @@ class SaidaAgent:
     def query(self, prompt: str) -> QueryResult:
         return self.orchestrator.run_query(prompt)
 
-    def run_benchmarks(self, cases: list[BenchmarkCase] | None = None) -> BenchmarkReport:
+    def run_benchmarks(
+        self,
+        cases: list[BenchmarkCase] | None = None,
+        suite_name: str = "default",
+        suite_version: str = "v1",
+        dataset_path: str | None = None,
+    ) -> BenchmarkReport:
         benchmark_cases = cases or [
             BenchmarkCase(name="smoke-analytics", query="Show revenue summary by quarter", expected_rows_min=0),
             BenchmarkCase(name="smoke-semantic", query="What datasets are available?", expected_rows_min=0),
         ]
         runner = BenchmarkRunner(self.orchestrator)
         report = runner.run(benchmark_cases)
-        self.control_plane.save_benchmark_report(asdict(report))
+        final_dataset_path = dataset_path
+        if final_dataset_path is None:
+            first_connector = self.connectors[0] if self.connectors else None
+            if first_connector is not None and hasattr(first_connector, "root"):
+                final_dataset_path = str(getattr(first_connector, "root"))
+
+        report_id, run_id = self.control_plane.save_benchmark_report(
+            asdict(report),
+            suite_name=suite_name,
+            suite_version=suite_version,
+            dataset_path=final_dataset_path,
+        )
+        self.control_plane.save_benchmark_lineage(
+            report_id=report_id,
+            run_id=run_id,
+            suite_name=suite_name,
+            suite_version=suite_version,
+            dataset_path=final_dataset_path,
+            details=report.details,
+        )
         return report

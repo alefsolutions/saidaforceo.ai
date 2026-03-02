@@ -32,6 +32,7 @@ class QueryResult:
     analytics_rows: list[dict[str, Any]]
     retrieved_context: list[dict[str, Any]]
     explanation: str
+    trace_id: str | None = None
 
 
 @dataclass(slots=True)

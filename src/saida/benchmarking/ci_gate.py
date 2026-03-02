@@ -35,7 +35,12 @@ def run_benchmark_gate(suite: BenchmarkSuite, dataset_path: str, dsn: str, parqu
     agent = SaidaAgent(cfg)
     agent.add_connector(FileSystemConnector(dataset_path))
     agent.ingest_all()
-    report = agent.run_benchmarks(cases=suite.cases)
+    report = agent.run_benchmarks(
+        cases=suite.cases,
+        suite_name=suite.name,
+        suite_version="v1",
+        dataset_path=dataset_path,
+    )
     failures = evaluate_thresholds(report, suite.thresholds)
     return report, failures
 

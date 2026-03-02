@@ -23,7 +23,16 @@ class BenchmarkRunner:
             except Exception as exc:  # pragma: no cover
                 ok_exec = False
                 result = None
-                details.append({"case": case.name, "error": str(exc)})
+                details.append(
+                    {
+                        "case": case.name,
+                        "query": case.query,
+                        "analytics_ok": False,
+                        "semantic_ok": False,
+                        "reasoning_ok": False,
+                        "error": str(exc),
+                    }
+                )
 
             if ok_exec and result is not None:
                 successful_executions += 1
@@ -40,9 +49,11 @@ class BenchmarkRunner:
                 details.append(
                     {
                         "case": case.name,
+                        "query": case.query,
                         "analytics_ok": analytics_ok,
                         "semantic_ok": semantic_ok,
                         "reasoning_ok": reasoning_ok,
+                        "trace_id": result.trace_id,
                     }
                 )
 
