@@ -1,289 +1,410 @@
-# SAIDA.ai (Core)
+# SAIDA
+## Specification Document
+### A Deterministic, Measurable Intelligence Framework for Cluttered Data
 
-<p align="left">
-  <img src="assets/logo.png" alt="SAIDA.ai logo" width="300" />
-</p>
+---
 
-**Strategic Artificial Intelligence for Data & Analytics**
+# 1. Purpose
 
-SAIDA.ai Core is an open-core intelligence engine designed to turn structured and unstructured business data into actionable executive insights.
+SAIDA is a Python intelligence framework that provides a structured intelligence layer over heterogeneous, cluttered data sources.
 
-It combines:
+SAIDA must:
 
-- Heavy data analytics pipelines
-- LLM-based reasoning
-- Retrieval-augmented generation (RAG)
-- Tool orchestration
-- Model routing
-- Connector abstraction
+- Ingest structured and unstructured data
+- Normalize tabular data into a canonical format
+- Provide deterministic analytics
+- Provide semantic retrieval
+- Provide controlled LLM reasoning
+- Provide measurable intelligence metrics
+- Remain fully configurable and extensible
+- Remain transport-agnostic (not tied to APIs)
 
-SAIDA Core is built for developers, data teams, and organizations that want to build intelligent systems over business data while maintaining full architectural control.
+SAIDA is a library, not a service.
 
-## Vision
+---
 
-SAIDA.ai Core exists to bridge the gap between raw business data and strategic decision-making intelligence.
+# 2. Delivery Model
 
-Instead of dashboards alone, SAIDA enables natural language analysis over:
+SAIDA must be delivered as:
 
-- Financial data
-- Sales and operational databases
-- PDFs and reports
-- Spreadsheets
-- Knowledge repositories
+- A Python package (`saida`)
+- Installable via pip
+- Importable into any Python script or application
+- Usable via direct Python code
+- Independent of web frameworks
+- Independent of background daemons
 
-The result is an AI engine capable of acting as a strategic analyst grounded in real data.
+SAIDA must not assume:
 
-## Architecture Overview
+- FastAPI
+- HTTP servers
+- Background workers
+- Multiprocessing runtimes
+- Thread pools
+- Continuous file watchers
 
-SAIDA.ai Core is modular and model-agnostic.
+All execution must be explicitly triggered by the caller.
 
-```text
-User Query
-  -> Intent Routing
-  -> Tool Selection
-  -> Data Retrieval (Database / Local Drive / Cloud Drive / Vector Search)
-  -> Analytics + LLM Reasoning Layer
-  -> Structured Executive Output
-```
+---
 
-Core components:
+# 3. Core Architectural Principles
 
-- Agent Orchestration
-- Model Router (multi-LLM support)
-- Tool Interface Layer
-- Connector Abstraction
-- Retrieval Engine
-- Analytics Engine
-- Embedding Layer
-- Vector Store Integration
+SAIDA must strictly separate:
 
-## Core Capabilities
+1. Deterministic computation (Analytics)
+2. Semantic retrieval (Vector layer)
+3. LLM reasoning (Language layer)
+4. Metadata management (Control plane)
+5. Orchestration (Workflow layer)
+6. Evaluation (Benchmarking subsystem)
 
-### 1. Heavy Data Analytics
+These responsibilities must not be mixed.
 
-SAIDA Core is not only a reasoning layer. It is built to execute data-heavy analytical workflows before synthesis.
+---
 
-It supports:
+# 4. High-Level System Architecture
 
-- Structured query execution
-- Metric computation and aggregation
-- Cross-source data joins
-- Time-series and comparative analysis
-- Explainable analytics outputs for executive decisions
+User Script
+    ↓
+SaidaAgent
+    ↓
+Orchestration Layer (LangChain)
+    ↓
+Query Router
+    ↓
+[Semantic Retrieval Layer]
+    ↓
+[Analytics Layer (DuckDB)]
+    ↓
+[LLM Reasoning Layer]
+    ↓
+Structured Response Object
 
-### 2. Model-Agnostic Reasoning
+---
 
-Supports multiple model providers:
+# 5. Subsystems Overview
 
-- OpenAI
-- Self-hosted open-weight models
-- Future provider integrations
+SAIDA must include the following subsystems:
 
-Route lightweight tasks to smaller models and complex tasks to larger models.
+1. Agent Subsystem  
+2. Connector Subsystem  
+3. Ingestion Subsystem  
+4. Storage Subsystem  
+5. Analytics Subsystem  
+6. Semantic Subsystem  
+7. LLM Subsystem  
+8. Embedding Subsystem  
+9. Orchestration Subsystem  
+10. Benchmarking & Evaluation Subsystem  
 
-### 3. Connector Framework
+Each subsystem must:
 
-A standardized connector interface enables integration with:
+- Be modular
+- Be independently testable
+- Expose clear interfaces
+- Avoid hidden runtime behavior
 
-- Local drive data sources
-- Google Drive files and folders
-- SQL and warehouse databases
-- API-based services
+---
 
-Connectors are modular, extensible, and tool-ready.
+# 6. Agent Subsystem
 
-### 4. Retrieval-Augmented Generation (RAG)
+## SaidaAgent
 
-- Document chunking
-- Embedding abstraction
-- Vector store support
-- Hybrid retrieval
-- Metadata filtering
+SaidaAgent is the primary entry point to the SAIDA framework.
 
-### 5. Tool-Oriented Agent Design
+Responsibilities:
 
-SAIDA agents do not hallucinate raw numbers.
+- Register connectors
+- Register LLM provider
+- Register embedding provider
+- Register compute engine
+- Manage configuration
+- Trigger ingestion
+- Execute queries
+- Trigger benchmarking
 
-They:
+Required public methods:
 
-- Call tools
-- Execute structured queries
-- Retrieve verified context
-- Generate explainable answers
+- agent.add_connector(connector)
+- agent.ingest_all()
+- agent.sync()
+- agent.query(prompt)
+- agent.run_benchmarks()
 
-### 6. Multi-Model Routing
+SaidaAgent must not:
 
-Lightweight models handle:
+- Spawn background loops
+- Automatically monitor file systems
+- Assume concurrency models
+- Run schedulers internally
 
-- Classification
-- Summarization
-- Parsing
-- Formatting
+All ingestion and execution must be explicit.
 
-Heavy models handle:
+---
 
-- Strategic synthesis
-- Deep financial reasoning
-- Multi-document inference
+# 7. Connector Subsystem
 
-## Data Connectivity
+Connectors abstract data sources.
 
-SAIDA Core is designed to connect directly to your data.
+All connectors must implement a common interface.
 
-Current focus:
+class BaseConnector:
+    def discover(self) -> list:
+        """Return list of resource identifiers available for ingestion."""
 
-- Local drive integration for file-based analysis
-- Google Drive integration for document retrieval and processing
-- Database integration for structured analytics (SQL-first)
+    def load(self, resource_id):
+        """Return raw content or structured content for a resource."""
 
-To support these integrations, the core includes:
+    def get_metadata(self):
+        """Return metadata about the source system."""
 
-- Connector abstraction interfaces
-- Authentication and connection hooks at the connector level
-- Tool contracts for consistent query/retrieval execution
-- Retrieval pipelines that unify documents and structured data
+Supported connector types must include:
 
-## What SAIDA Core Includes
+- FileSystemConnector
+- GoogleDriveConnector
+- PostgresConnector
+- MySQLConnector
 
-Open-source core provides:
+Connector design constraints:
 
-- Agent orchestration engine
-- Data analytics execution layer
-- Model routing layer
-- Tool abstraction framework
-- Base connector interfaces
-- Retrieval logic
-- Embedding wrappers
-- CLI execution mode
-- Local development setup
+- Must be stateless
+- Must not manage background threads
+- Must not persist data directly
+- Must delegate storage to ingestion subsystem
 
-## What SAIDA Core Does NOT Include
+---
 
-The open-source core does not include:
+# 8. Ingestion Subsystem
 
-- Multi-tenancy
-- Enterprise authentication
-- RBAC
-- Audit logging
-- Billing systems
-- SaaS dashboard
-- Managed cloud deployment scripts
-- Enterprise connectors
-- SLA-backed hosting
+The Ingestion Subsystem transforms raw data into canonical internal representations.
 
-These features are part of the commercial SAIDA Enterprise platform.
+Responsibilities:
 
-## Installation
+- Parse documents (PDF, DOCX, TXT)
+- Parse spreadsheets (XLSX, CSV, JSON)
+- Convert tabular data to Parquet
+- Profile schemas
+- Generate semantic summaries
+- Compute dataset hashes
+- Detect changes via version/hash comparison
+- Store metadata in PostgreSQL
+- Generate embeddings
 
-```bash
-git clone https://github.com/your-org/saida-core.git
-cd saida-core
-pip install -e .
-```
+Ingestion must be:
 
-Set environment variables:
+- Idempotent
+- Deterministic
+- Explicitly invoked
 
-```bash
-export OPENAI_API_KEY=your_key
-```
+Ingestion must not:
 
-Run locally:
+- Run continuously
+- Poll connectors automatically
+- Spawn threads or workers internally
 
-```bash
-python -m saida_core.cli
-```
+---
 
-## Example Usage
+# 9. Storage Subsystem
 
-```python
-from saida import SaidaAgent
+## PostgreSQL (Control Plane + Semantic Layer)
 
-agent = SaidaAgent()
+PostgreSQL must be used for:
 
-response = agent.ask(
-    "Why did revenue decline in Q3 compared to Q2?"
-)
+- Dataset registry
+- Schema definitions
+- Column metadata
+- Data profiling statistics
+- Execution logs
+- Benchmark results
+- Vector embeddings (via pgvector)
 
-print(response)
-```
+Schema management must use ORM (e.g., SQLAlchemy + Alembic).
 
-## Design Philosophy
+---
 
-SAIDA.ai Core is built on simplicity and transparency.
+## Parquet (Tabular Storage Layer)
 
-Its core principles are:
+All tabular data must be converted to Parquet.
 
-- Simplicity in architecture, workflows, and developer experience
-- Transparency in data flow, tool usage, and reasoning outputs
-- Tool-first reasoning over hallucination
-- Heavy analytics before narrative synthesis
-- Modular architecture
-- Provider independence
-- Production extensibility
+Parquet serves as:
 
-## Use Cases
+- Canonical tabular representation
+- Immutable dataset version storage
+- Input to DuckDB analytics engine
 
-- Financial intelligence systems
-- Executive AI assistants
-- AI-powered BI platforms
-- Internal analytics copilots
-- Compliance-aware AI agents
-- Document + database hybrid reasoning systems
+SAIDA must not create uncontrolled PostgreSQL tables per spreadsheet.
 
-## License
+---
 
-SAIDA.ai Core is licensed under the Apache License 2.0.
+# 10. Analytics Subsystem
 
-You are free to:
+## DuckDB
 
-- Use
-- Modify
-- Distribute
-- Commercialize derivatives
+DuckDB must be the deterministic compute engine.
 
-Subject to the terms of the license.
+Responsibilities:
 
-## Enterprise Version
+- Execute SQL queries
+- Perform aggregations (SUM, AVG, COUNT, etc.)
+- Perform joins
+- Perform group-by operations
+- Perform window functions
+- Query Parquet files
+- Attach external SQL databases for federated analytics
 
-SAIDA Enterprise includes:
+Critical Rule:
 
-- Multi-tenant SaaS architecture
-- Enterprise authentication (OAuth, SSO)
-- Role-based access control
-- Audit logs
-- Usage analytics
-- Data export tools
-- Managed hosting
-- Premium connectors
-- SLA-backed support
+LLM must never compute numeric results.
 
-For enterprise licensing or hosted deployments:
+All numeric results must originate from DuckDB execution.
 
-`hello@alefpng.com`
+---
 
-## Roadmap
+# 11. Semantic Subsystem
 
-- Enhanced model routing
-- Pluggable policy engine
-- Fine-tuning support
-- Connector marketplace
-- Governance and compliance layer
-- Enterprise on-prem deployment support
+Implemented using PostgreSQL + pgvector.
 
-## Contribution
+Responsibilities:
 
-We welcome community contributions.
+- Store document embeddings
+- Store dataset summaries
+- Store schema descriptions
+- Support retrieval
+- Support column grounding
+- Support dataset discovery
 
-To contribute:
+Embeddings must be provider-agnostic.
 
-- Fork the repository
-- Create a feature branch
-- Submit a pull request
+---
 
-All contributions must align with project architecture principles.
+# 12. LLM Subsystem
 
-## About
+LLM must be pluggable.
 
-SAIDA stands for Strategic Artificial Intelligence for Data & Analytics.
+Responsibilities:
 
-It is designed to move beyond dashboards into real AI-assisted executive reasoning grounded in analytics.
+- Interpret natural language queries
+- Generate SQL plans (optional)
+- Produce explanations
+- Perform semantic enrichment
+
+LLM must not:
+
+- Execute SQL
+- Compute numeric results
+- Access databases directly
+
+---
+
+# 13. Orchestration Subsystem
+
+Must use LangChain.
+
+Responsibilities:
+
+- Query classification
+- Tool routing
+- Retrieval chaining
+- SQL planning
+- Explanation generation
+
+LLM must never bypass analytics or semantic layers.
+
+---
+
+# 14. No Background Runtime in Core
+
+SAIDA Core must not implement:
+
+- Multiprocessing ingestion
+- Background file watchers
+- Continuous polling
+- Task schedulers
+
+Background ingestion is considered deployment-level functionality.
+
+---
+
+# 15. Benchmarking & Evaluation Subsystem
+
+The Benchmarking Subsystem measures SAIDA’s intelligence.
+
+It must:
+
+- Use the same execution pipeline as production
+- Run predefined benchmark datasets
+- Compare outputs to expected results
+- Compute intelligence scores
+- Persist results in PostgreSQL
+- Produce CLI and JSON reports
+
+---
+
+## Intelligence Dimensions
+
+Analytical Intelligence Score (AIS):
+(Correct Analytical Results / Total Analytical Tests) × 100
+
+Semantic Intelligence Score (SES):
+(Correct Semantic Matches / Total Semantic Tests) × 100
+
+Reasoning Intelligence Score (RIS):
+(Faithful Explanations / Total Explanations) × 100
+
+System Stability Score (SSS):
+(Successful Executions / Total Executions) × 100
+
+Composite SAIDA Intelligence Score:
+0.40 × AIS
++ 0.30 × SES
++ 0.20 × RIS
++ 0.10 × SSS
+
+Weights must be configurable.
+
+---
+
+# 16. Project Structure
+
+saida/
+  agent/
+  connectors/
+  ingestion/
+  storage/
+  analytics/
+  semantic/
+  llm/
+  embeddings/
+  orchestration/
+  benchmarking/
+  models/
+  utils/
+
+Each folder must correspond to a subsystem defined above.
+
+---
+
+# 17. Production Readiness Criteria
+
+Minimum thresholds:
+
+- AIS ≥ 95%
+- SES ≥ 90%
+- RIS ≥ 90%
+- SSS ≥ 95%
+
+---
+
+# 18. Definition of SAIDA
+
+SAIDA is:
+
+A deterministic, measurable, modular intelligence framework.
+
+It is defined by:
+
+- Correctness
+- Reproducibility
+- Measurability
+- Configurability
+- Extensibility
