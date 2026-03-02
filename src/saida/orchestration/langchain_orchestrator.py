@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
+from langchain_core.runnables import RunnableLambda
+from langchain_core.tools import tool
+
 from saida.analytics.engine import DuckDBAnalyticsEngine
 from saida.embeddings.base import BaseEmbeddingProvider
 from saida.llm.base import BaseLLMProvider
@@ -9,10 +15,21 @@ from saida.semantic.store import SemanticStore
 from saida.storage.control_plane import ControlPlaneStore
 
 
-class LangChainOrchestrator:
-    """Workflow layer. Uses LangChain-style prompt orchestration semantics.
+@dataclass(slots=True)
+class GraphState:
+    query: str
+    route: str
+    retrieved: list[dict[str, Any]]
+    sql: str | None
+    analytics_rows: list[dict[str, Any]]
+    explanation: str
 
-    A full LangChain chain graph can be added here without changing agent API.
+
+class LangChainOrchestrator:
+    """LangChain runnable graph using explicit tools.
+
+    Graph:
+      route -> semantic_retrieve_tool -> analytics_query_tool -> llm_synthesis
     """
 
     def __init__(
@@ -30,43 +47,103 @@ class LangChainOrchestrator:
         self.analytics_engine = analytics_engine
         self.router = QueryRouter()
 
-    def run_query(self, prompt: str) -> QueryResult:
-        route = self.router.classify(prompt)
-        q_emb = self.embedding_provider.embed([prompt])[0]
-        retrieved = self.semantic_store.retrieve(q_emb, limit=5)
+        self.semantic_retrieve_tool = self._build_semantic_retrieve_tool()
+        self.analytics_query_tool = self._build_analytics_query_tool()
 
-        sql: str | None = None
-        analytics_rows: list[dict] = []
-        if route == "analytics":
-            top_dataset = next((r["dataset"] for r in retrieved if r["dataset"].parquet_path), None)
-            if top_dataset and top_dataset.parquet_path:
-                sql = "SELECT * FROM read_parquet(?) LIMIT 25"
-                analytics_rows = self.analytics_engine.execute(
-                    sql.replace("?", f"'{top_dataset.parquet_path.replace("'", "''")}'")
-                )
-
-        explanation_prompt = (
-            "You are SAIDA. Use deterministic analytics results and retrieved context. "
-            "Do not invent numeric calculations not present in analytics_rows.\n"
-            f"user_prompt={prompt}\n"
-            f"route={route}\n"
-            f"retrieved_count={len(retrieved)}\n"
-            f"analytics_rows_count={len(analytics_rows)}"
+        self.graph = (
+            RunnableLambda(self._route_step)
+            | RunnableLambda(self._semantic_step)
+            | RunnableLambda(self._analytics_step)
+            | RunnableLambda(self._synthesis_step)
         )
-        explanation = self.llm_provider.explain(explanation_prompt)
-        retrieved_context = [
-            {
-                "dataset_id": item["dataset"].dataset_id,
-                "source": item["dataset"].source_resource_id,
-                "score": item["score"],
-            }
-            for item in retrieved
-        ]
-        return QueryResult(
+
+    def _build_semantic_retrieve_tool(self):
+        @tool("semantic_retrieve")
+        def semantic_retrieve(query: str) -> list[dict]:
+            """Retrieve semantically relevant datasets and context for a user query."""
+            q_emb = self.embedding_provider.embed([query])[0]
+            rows = self.semantic_store.retrieve(q_emb, limit=5)
+            out: list[dict] = []
+            for item in rows:
+                dataset = item["dataset"]
+                out.append(
+                    {
+                        "dataset_id": dataset.dataset_id,
+                        "source": dataset.source_resource_id,
+                        "parquet_path": dataset.parquet_path,
+                        "score": float(item["score"]),
+                    }
+                )
+            return out
+
+        return semantic_retrieve
+
+    def _build_analytics_query_tool(self):
+        @tool("analytics_query")
+        def analytics_query(query: str, parquet_path: str) -> dict:
+            """Run deterministic DuckDB analytics over a parquet dataset."""
+            if not parquet_path:
+                return {"sql": None, "rows": []}
+            escaped = parquet_path.replace("'", "''")
+            sql = f"SELECT * FROM read_parquet('{escaped}') LIMIT 25"
+            rows = self.analytics_engine.execute(sql)
+            return {"sql": sql, "rows": rows}
+
+        return analytics_query
+
+    def _route_step(self, prompt: str) -> GraphState:
+        return GraphState(
             query=prompt,
-            route=route,
-            sql=sql,
-            analytics_rows=analytics_rows,
-            retrieved_context=retrieved_context,
+            route=self.router.classify(prompt),
+            retrieved=[],
+            sql=None,
+            analytics_rows=[],
+            explanation="",
+        )
+
+    def _semantic_step(self, state: GraphState) -> GraphState:
+        retrieved = self.semantic_retrieve_tool.invoke({"query": state.query})
+        state.retrieved = retrieved
+        return state
+
+    def _analytics_step(self, state: GraphState) -> GraphState:
+        if state.route != "analytics":
+            return state
+
+        top = next((r for r in state.retrieved if r.get("parquet_path")), None)
+        if top is None:
+            return state
+
+        result = self.analytics_query_tool.invoke({"query": state.query, "parquet_path": top["parquet_path"]})
+        state.sql = result.get("sql")
+        state.analytics_rows = result.get("rows", [])
+        return state
+
+    def _synthesis_step(self, state: GraphState) -> QueryResult:
+        prompt = (
+            "You are SAIDA. Use tool outputs only. "
+            "Do not fabricate numeric values not present in analytics rows.\n"
+            f"query={state.query}\n"
+            f"route={state.route}\n"
+            f"retrieved_context={state.retrieved}\n"
+            f"analytics_rows={state.analytics_rows}"
+        )
+        explanation = self.llm_provider.explain(prompt)
+        return QueryResult(
+            query=state.query,
+            route=state.route,
+            sql=state.sql,
+            analytics_rows=state.analytics_rows,
+            retrieved_context=[
+                {
+                    "dataset_id": item.get("dataset_id"),
+                    "source": item.get("source"),
+                    "score": item.get("score"),
+                }
+                for item in state.retrieved
+            ],
             explanation=explanation,
         )
+
+    def run_query(self, prompt: str) -> QueryResult:
+        return self.graph.invoke(prompt)
