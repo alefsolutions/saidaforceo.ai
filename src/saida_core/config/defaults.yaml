@@ -1,4 +1,0 @@
-llm_provider: openai
-embedding_provider: openai
-vector_store_provider: chroma
-data_source_provider: local_fs
