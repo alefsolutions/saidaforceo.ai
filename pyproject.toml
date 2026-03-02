@@ -3,14 +3,15 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "saida-core"
+name = "saida"
 version = "0.1.0"
-description = "SAIDA.ai Core - Strategic Artificial Intelligence for Data & Analytics"
+description = "SAIDA deterministic, measurable intelligence framework"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "openai>=1.40.0",
-  "chromadb>=0.5.0",
+  "duckdb>=1.1.0",
+  "langchain-core>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -20,14 +21,15 @@ dev = [
 ]
 
 [project.scripts]
-saida-core = "saida_core.cli.main:main"
+saida = "saida.cli.main:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["saida_core*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests"]
+testpaths = ["spec_tests"]

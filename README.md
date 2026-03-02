@@ -1,4 +1,8 @@
-# SAIDA
+<p align="center">
+  <img src="assets/banner.png" alt="SAIDA Banner" />
+</p>
+
+# SAIDA (Core)
 ## Specification Document
 ### A Deterministic, Measurable Intelligence Framework for Cluttered Data
 
@@ -65,19 +69,19 @@ These responsibilities must not be mixed.
 # 4. High-Level System Architecture
 
 User Script
-    ↓
+    ->
 SaidaAgent
-    ↓
+    ->
 Orchestration Layer (LangChain)
-    ↓
+    ->
 Query Router
-    ↓
+    ->
 [Semantic Retrieval Layer]
-    ↓
+    ->
 [Analytics Layer (DuckDB)]
-    ↓
+    ->
 [LLM Reasoning Layer]
-    ↓
+    ->
 Structured Response Object
 
 ---

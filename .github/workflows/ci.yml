@@ -31,6 +31,4 @@ jobs:
         env:
           SAIDA_LLM_PROVIDER: mock
           SAIDA_EMBEDDING_PROVIDER: mock
-          SAIDA_VECTOR_STORE_PROVIDER: mock
-          SAIDA_DATA_SOURCE_PROVIDER: local_fs
         run: python -m pytest -q
