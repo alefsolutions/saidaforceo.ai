@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+Quick links: [Main README](./README.md) | [Architecture Contract](./ARCHITECTURE.md) | [License](./LICENSE)
+
 ## [Unreleased]
 ### Added
 - Release hygiene tooling with pre-commit, Ruff linting, MyPy type checks, and pinned lock files.
@@ -18,3 +20,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Changed
 - Migrated from legacy `saida_core` scaffold to spec-aligned `saida` package structure.
+
+---
+
+Sponsored and supported by Alef Digital Solutions.

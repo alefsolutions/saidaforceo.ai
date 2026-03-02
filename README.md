@@ -2,499 +2,122 @@
   <img src="assets/banner.png" alt="SAIDA Banner" />
 </p>
 
-# SAIDA (Core)
-## Specification Document
-### A Deterministic, Measurable Intelligence Framework for Cluttered Data
+# SAIDA
 
----
+SAIDA is a deterministic, measurable AI intelligence framework for business data.
 
-# 1. Purpose
+It combines deterministic analytics, semantic retrieval, and controlled LLM reasoning into one library that developers can embed in Python applications.
 
-SAIDA is a Python intelligence framework that provides a structured intelligence layer over heterogeneous, cluttered data sources.
+## Quick Links
 
-SAIDA must:
+- Full architecture and contract: [ARCHITECTURE.md](./ARCHITECTURE.md)
+- Release history: [CHANGELOG.md](./CHANGELOG.md)
+- License: [LICENSE](./LICENSE)
 
-- Ingest structured and unstructured data
-- Normalize tabular data into a canonical format
-- Provide deterministic analytics
-- Provide semantic retrieval
-- Provide controlled LLM reasoning
-- Provide measurable intelligence metrics
-- Remain fully configurable and extensible
-- Remain transport-agnostic (not tied to APIs)
+## Technical Baseline
 
-SAIDA is a library, not a service.
+SAIDA is a Python library/framework (not a hosted service).
 
----
+### Runtime and Toolchain
 
-# 2. Delivery Model
+- Python: `>=3.11` (recommended: `3.11` or `3.12`)
+- Packaging: `pyproject.toml` (setuptools)
+- Migrations: Alembic
+- Type checking: MyPy
+- Linting/formatting: Ruff
+- Pre-commit hooks: pre-commit
 
-SAIDA must be delivered as:
+### Core Runtime Dependencies (Pinned)
 
-- A Python package (`saida`)
-- Installable via pip
-- Importable into any Python script or application
-- Usable via direct Python code
-- Independent of web frameworks
-- Independent of background daemons
+- `openai==2.21.0`
+- `duckdb==1.4.4`
+- `langchain-core==1.2.13`
+- `sqlalchemy==2.0.46`
+- `alembic==1.18.4`
+- `psycopg[binary]==3.3.2`
+- `pgvector==0.4.2`
+- `pymysql==1.1.2`
+- `google-api-python-client==2.190.0`
+- `google-auth==2.48.0`
+- `pypdf==6.7.0`
+- `python-docx==1.2.0`
+- `openpyxl==3.1.5`
 
-SAIDA must not assume:
+See lock files:
+- Runtime lock: [`requirements.lock.txt`](./requirements.lock.txt)
+- Dev/tooling lock: [`requirements-dev.lock.txt`](./requirements-dev.lock.txt)
 
-- FastAPI
-- HTTP servers
-- Background workers
-- Multiprocessing runtimes
-- Thread pools
-- Continuous file watchers
+## Install and Run
 
-All execution must be explicitly triggered by the caller.
-
----
-
-# 3. Core Architectural Principles
-
-SAIDA must strictly separate:
-
-1. Deterministic computation (Analytics)
-2. Semantic retrieval (Vector layer)
-3. LLM reasoning (Language layer)
-4. Metadata management (Control plane)
-5. Orchestration (Workflow layer)
-6. Evaluation (Benchmarking subsystem)
-
-These responsibilities must not be mixed.
-
----
-
-# 4. High-Level System Architecture
-
-User Script
-    ->
-SaidaAgent
-    ->
-Orchestration Layer (LangChain)
-    ->
-Query Router
-    ->
-[Semantic Retrieval Layer]
-    ->
-[Analytics Layer (DuckDB)]
-    ->
-[LLM Reasoning Layer]
-    ->
-Structured Response Object
-
----
-
-# 5. Subsystems Overview
-
-SAIDA must include the following subsystems:
-
-1. Agent Subsystem  
-2. Connector Subsystem  
-3. Ingestion Subsystem  
-4. Storage Subsystem  
-5. Analytics Subsystem  
-6. Semantic Subsystem  
-7. LLM Subsystem  
-8. Embedding Subsystem  
-9. Orchestration Subsystem  
-10. Benchmarking & Evaluation Subsystem  
-
-Each subsystem must:
-
-- Be modular
-- Be independently testable
-- Expose clear interfaces
-- Avoid hidden runtime behavior
-
----
-
-# 6. Agent Subsystem
-
-## SaidaAgent
-
-SaidaAgent is the primary entry point to the SAIDA framework.
-
-Responsibilities:
-
-- Register connectors
-- Register LLM provider
-- Register embedding provider
-- Register compute engine
-- Manage configuration
-- Trigger ingestion
-- Execute queries
-- Trigger benchmarking
-
-Required public methods:
-
-- agent.add_connector(connector)
-- agent.ingest_all()
-- agent.sync()
-- agent.query(prompt)
-- agent.run_benchmarks()
-
-SaidaAgent must not:
-
-- Spawn background loops
-- Automatically monitor file systems
-- Assume concurrency models
-- Run schedulers internally
-
-All ingestion and execution must be explicit.
-
----
-
-# 7. Connector Subsystem
-
-Connectors abstract data sources.
-
-All connectors must implement a common interface.
-
-class BaseConnector:
-    def discover(self) -> list:
-        """Return list of resource identifiers available for ingestion."""
-
-    def load(self, resource_id):
-        """Return raw content or structured content for a resource."""
-
-    def get_metadata(self):
-        """Return metadata about the source system."""
-
-Supported connector types must include:
-
-- FileSystemConnector
-- GoogleDriveConnector
-- PostgresConnector
-- MySQLConnector
-
-Connector design constraints:
-
-- Must be stateless
-- Must not manage background threads
-- Must not persist data directly
-- Must delegate storage to ingestion subsystem
-
----
-
-# 8. Ingestion Subsystem
-
-The Ingestion Subsystem transforms raw data into canonical internal representations.
-
-Responsibilities:
-
-- Parse documents (PDF, DOCX, TXT)
-- Parse spreadsheets (XLSX, CSV, JSON)
-- Convert tabular data to Parquet
-- Profile schemas
-- Generate semantic summaries
-- Compute dataset hashes
-- Detect changes via version/hash comparison
-- Store metadata in PostgreSQL
-- Generate embeddings
-
-Ingestion must be:
-
-- Idempotent
-- Deterministic
-- Explicitly invoked
-
-Ingestion must not:
-
-- Run continuously
-- Poll connectors automatically
-- Spawn threads or workers internally
-
----
-
-# 9. Storage Subsystem
-
-## PostgreSQL (Control Plane + Semantic Layer)
-
-PostgreSQL must be used for:
-
-- Dataset registry
-- Schema definitions
-- Column metadata
-- Data profiling statistics
-- Execution logs
-- Benchmark results
-- Vector embeddings (via pgvector)
-
-Schema management must use ORM (e.g., SQLAlchemy + Alembic).
-
----
-
-## Parquet (Tabular Storage Layer)
-
-All tabular data must be converted to Parquet.
-
-Parquet serves as:
-
-- Canonical tabular representation
-- Immutable dataset version storage
-- Input to DuckDB analytics engine
-
-SAIDA must not create uncontrolled PostgreSQL tables per spreadsheet.
-
----
-
-# 9.1 Production PostgreSQL Setup & Migration Workflow
-
-For production deployments, initialize PostgreSQL and run schema migrations before starting SAIDA workloads.
-
-## 1. Create PostgreSQL database
+### 1. Install dependencies
 
 ```bash
-psql -U postgres -h localhost -c "CREATE DATABASE saida;"
+pip install -r requirements-dev.lock.txt
+pip install -e . --no-deps
 ```
 
-## 2. Configure environment
+### 2. (Optional) Setup pre-commit
 
 ```bash
-export SAIDA_CONTROL_PLANE_DSN="postgresql+psycopg://postgres:postgres@localhost:5432/saida"
-export SAIDA_LLM_PROVIDER=mock
-export SAIDA_EMBEDDING_PROVIDER=mock
+pre-commit install
+pre-commit run --all-files
 ```
 
-## 3. Run Alembic migrations
+### 3. Run migrations
 
 ```bash
 python -m alembic -c alembic.ini upgrade head
 ```
 
-Alternative with explicit DB URL override:
+### 4. Try SAIDA from CLI
 
 ```bash
-python -m alembic -c alembic.ini -x db_url="postgresql+psycopg://postgres:postgres@localhost:5432/saida" upgrade head
+python -m saida.cli.main query --path ./benchmarks/datasets --prompt "show revenue by quarter"
 ```
 
-## 4. Verify pgvector extension
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-SELECT extname FROM pg_extension WHERE extname = 'vector';
-```
-
-## 5. Add vector index for semantic search
-
-Use one of the following index strategies depending on your workload:
-
-```sql
--- HNSW (high recall, fast query; PostgreSQL 15+ recommended)
-CREATE INDEX IF NOT EXISTS idx_semantic_embeddings_hnsw
-ON semantic_embeddings
-USING hnsw (embedding_vector vector_cosine_ops);
-
--- IVFFlat (faster build, requires ANALYZE/training characteristics)
-CREATE INDEX IF NOT EXISTS idx_semantic_embeddings_ivfflat
-ON semantic_embeddings
-USING ivfflat (embedding_vector vector_cosine_ops)
-WITH (lists = 100);
-```
-
-Operational notes:
-
-- Run `ANALYZE semantic_embeddings;` after major ingestion batches.
-- Re-run `python -m alembic -c alembic.ini upgrade head` during deployments to apply new schema revisions.
-- Keep migrations as the only schema change path in production.
-
----
-
-# 10. Analytics Subsystem
-
-## DuckDB
-
-DuckDB must be the deterministic compute engine.
-
-Responsibilities:
-
-- Execute SQL queries
-- Perform aggregations (SUM, AVG, COUNT, etc.)
-- Perform joins
-- Perform group-by operations
-- Perform window functions
-- Query Parquet files
-- Attach external SQL databases for federated analytics
-
-Critical Rule:
-
-LLM must never compute numeric results.
-
-All numeric results must originate from DuckDB execution.
-
----
-
-# 11. Semantic Subsystem
-
-Implemented using PostgreSQL + pgvector.
-
-Responsibilities:
-
-- Store document embeddings
-- Store dataset summaries
-- Store schema descriptions
-- Support retrieval
-- Support column grounding
-- Support dataset discovery
-
-Embeddings must be provider-agnostic.
-
----
-
-# 12. LLM Subsystem
-
-LLM must be pluggable.
-
-Responsibilities:
-
-- Interpret natural language queries
-- Generate SQL plans (optional)
-- Produce explanations
-- Perform semantic enrichment
-
-LLM must not:
-
-- Execute SQL
-- Compute numeric results
-- Access databases directly
-
----
-
-# 13. Orchestration Subsystem
-
-Must use LangChain.
-
-Responsibilities:
-
-- Query classification
-- Tool routing
-- Retrieval chaining
-- SQL planning
-- Explanation generation
-
-LLM must never bypass analytics or semantic layers.
-
----
-
-# 14. No Background Runtime in Core
-
-SAIDA Core must not implement:
-
-- Multiprocessing ingestion
-- Background file watchers
-- Continuous polling
-- Task schedulers
-
-Background ingestion is considered deployment-level functionality.
-
----
-
-# 15. Benchmarking & Evaluation Subsystem
-
-The Benchmarking Subsystem measures SAIDA's intelligence.
-
-It must:
-
-- Use the same execution pipeline as production
-- Run predefined benchmark datasets
-- Compare outputs to expected results
-- Compute intelligence scores
-- Persist results in PostgreSQL
-- Produce CLI and JSON reports
-
----
-
-## Intelligence Dimensions
-
-Analytical Intelligence Score (AIS):
-(Correct Analytical Results / Total Analytical Tests) x 100
-
-Semantic Intelligence Score (SES):
-(Correct Semantic Matches / Total Semantic Tests) x 100
-
-Reasoning Intelligence Score (RIS):
-(Faithful Explanations / Total Explanations) x 100
-
-System Stability Score (SSS):
-(Successful Executions / Total Executions) x 100
-
-Composite SAIDA Intelligence Score:
-0.40 x AIS
-+ 0.30 x SES
-+ 0.20 x RIS
-+ 0.10 x SSS
-
-Weights must be configurable.
-
----
-
-# 16. Project Structure
-
-saida/
-  agent/
-  connectors/
-  ingestion/
-  storage/
-  analytics/
-  semantic/
-  llm/
-  embeddings/
-  orchestration/
-  benchmarking/
-  models/
-  utils/
-
-Each folder must correspond to a subsystem defined above.
-
----
-
-# 17. Production Readiness Criteria
-
-Minimum thresholds:
-
-- AIS >= 95%
-- SES >= 90%
-- RIS >= 90%
-- SSS >= 95%
-
----
-
-# 18. Definition of SAIDA
-
-SAIDA is:
-
-A deterministic, measurable, modular intelligence framework.
-
-It is defined by:
-
-- Correctness
-- Reproducibility
-- Measurability
-- Configurability
-- Extensibility
-
----
-
-# 19. Release Hygiene
-
-Release hygiene in SAIDA is enforced through:
-
-- Pre-commit hooks (`.pre-commit-config.yaml`) for formatting, linting, and type checks.
-- Linting with Ruff (`python -m ruff check src/saida spec_tests`).
-- Type checking with MyPy (`python -m mypy --config-file pyproject.toml src/saida`).
-- Pinned dependency lock files:
-  - `requirements.lock.txt` (runtime)
-  - `requirements-dev.lock.txt` (dev/test/tooling)
-- Versioned change history in `CHANGELOG.md`.
-
-Recommended local workflow:
+### 5. Run quality gates
 
 ```bash
-pip install -r requirements-dev.lock.txt
-pip install -e . --no-deps
-pre-commit install
-pre-commit run --all-files
+python -m ruff check src/saida spec_tests
+python -m mypy --config-file pyproject.toml src/saida
 python -m pytest -q
+python -m saida.benchmarking.ci_gate --suite benchmarks/suites/core_v1.json --datasets benchmarks/datasets
 ```
+
+## SAIDA Use Cases (Developer-Focused)
+
+- Executive KPI copilots for quarterly reviews
+- Financial variance analysis over CSV/XLSX/DB data
+- Revenue trend analysis from mixed files + databases
+- Cost center diagnostics with deterministic SQL outputs
+- Board memo generation grounded in verified analytics
+- Business operations intelligence assistants
+- Internal BI copilots for analytics teams
+- Natural-language querying over Parquet datasets
+- Cross-dataset semantic search over internal docs
+- Data room summarization for leadership updates
+- Post-merger reporting and dataset consolidation workflows
+- Compliance-oriented explanation generation with audit trails
+- Postgres + pgvector semantic retrieval applications
+- MySQL-backed analysis assistants for ops teams
+- Google Drive document intelligence pipelines
+- File-system analytics workflows for local/private datasets
+- Benchmark-driven model and prompt evaluation loops
+- Quality-gated AI analytics in CI/CD
+- Risk monitoring pipelines with reproducible scoring
+- Metric reporting bots with traceable query lineage
+- Product analytics copilots with safe SQL planning
+- Sales analytics assistants with deterministic rollups
+- Operations note summarization tied to source evidence
+- Investor update assistants grounded in source data
+- Internal knowledge copilots for strategy teams
+
+## Support
+
+For support, enterprise collaboration, or deployment help:
+
+- `hello@alefpng.com`
+
+---
+
+Sponsored and supported by Alef Digital Solutions.
