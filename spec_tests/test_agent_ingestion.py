@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from openpyxl import Workbook
+
 from saida import SaidaAgent
 from saida.connectors.filesystem import FileSystemConnector
 from saida.utils.config import SaidaConfig
@@ -26,3 +28,23 @@ def test_ingestion_is_explicit_and_idempotent(tmp_path: Path):
 
     assert len(first) >= 1
     assert second == []
+
+
+def test_ingestion_parses_xlsx_spreadsheet(tmp_path: Path):
+    data = tmp_path / "data"
+    data.mkdir()
+    xlsx = data / "finance.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Finance"
+    ws.append(["quarter", "revenue"])
+    ws.append(["Q1", 120])
+    ws.append(["Q2", 180])
+    wb.save(xlsx)
+
+    db_path = tmp_path / "control.db"
+    agent = SaidaAgent(SaidaConfig(control_plane_dsn=f"sqlite+pysqlite:///{db_path.as_posix()}"))
+    agent.add_connector(FileSystemConnector(str(data)))
+
+    assets = agent.ingest_all()
+    assert any(a.source_resource_id.endswith("finance.xlsx") and a.kind == "tabular" for a in assets)
