@@ -1,0 +1,13 @@
+openai==2.21.0
+duckdb==1.4.4
+langchain-core==1.2.13
+sqlalchemy==2.0.46
+alembic==1.18.4
+psycopg[binary]==3.3.2
+pgvector==0.4.2
+pymysql==1.1.2
+google-api-python-client==2.190.0
+google-auth==2.48.0
+pypdf==6.7.0
+python-docx==1.2.0
+openpyxl==3.1.5

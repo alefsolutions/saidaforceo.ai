@@ -8,8 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from saida.models.types import DatasetAsset
 from saida.storage.db import session_scope
-from saida.storage.schema import DEFAULT_EMBEDDING_DIMENSIONS
-from saida.storage.schema import DatasetRow, SemanticEmbeddingRow
+from saida.storage.schema import DEFAULT_EMBEDDING_DIMENSIONS, DatasetRow, SemanticEmbeddingRow
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -61,11 +60,13 @@ class SemanticStore:
             return pgvector_rows
 
         with session_scope(self.session_factory) as session:
-            rows: list[tuple[DatasetRow, SemanticEmbeddingRow]] = session.execute(
-                select(DatasetRow, SemanticEmbeddingRow).join(
-                    SemanticEmbeddingRow, DatasetRow.dataset_id == SemanticEmbeddingRow.dataset_id
-                )
-            ).all()
+            rows = list(
+                session.execute(
+                    select(DatasetRow, SemanticEmbeddingRow).join(
+                        SemanticEmbeddingRow, DatasetRow.dataset_id == SemanticEmbeddingRow.dataset_id
+                    )
+                ).all()
+            )
 
         scored: list[dict[str, Any]] = []
         for dataset_row, embedding_row in rows:

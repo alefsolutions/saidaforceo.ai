@@ -474,3 +474,27 @@ It is defined by:
 - Measurability
 - Configurability
 - Extensibility
+
+---
+
+# 19. Release Hygiene
+
+Release hygiene in SAIDA is enforced through:
+
+- Pre-commit hooks (`.pre-commit-config.yaml`) for formatting, linting, and type checks.
+- Linting with Ruff (`python -m ruff check src/saida spec_tests`).
+- Type checking with MyPy (`python -m mypy --config-file pyproject.toml src/saida`).
+- Pinned dependency lock files:
+  - `requirements.lock.txt` (runtime)
+  - `requirements-dev.lock.txt` (dev/test/tooling)
+- Versioned change history in `CHANGELOG.md`.
+
+Recommended local workflow:
+
+```bash
+pip install -r requirements-dev.lock.txt
+pip install -e . --no-deps
+pre-commit install
+pre-commit run --all-files
+python -m pytest -q
+```

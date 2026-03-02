@@ -5,9 +5,9 @@ import pytest
 from saida import SaidaAgent
 from saida.analytics.sql_planner import SQLPlanner
 from saida.analytics.sql_validator import SQLValidationError, SQLValidator
+from saida.connectors.filesystem import FileSystemConnector
 from saida.llm.base import BaseLLMProvider
 from saida.orchestration.llm_guard import LLMNumericPolicyError
-from saida.connectors.filesystem import FileSystemConnector
 from saida.utils.config import SaidaConfig
 
 

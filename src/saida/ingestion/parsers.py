@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 TEXT_EXTENSIONS = {".txt", ".md", ".log", ".py", ".sql", ".json", ".csv", ".docx", ".pdf"}
 TABULAR_EXTENSIONS = {".csv", ".json", ".xlsx"}
 

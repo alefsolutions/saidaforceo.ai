@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict
-from pathlib import Path
 
 from saida import SaidaAgent
 from saida.benchmarking.suite import BenchmarkSuite, BenchmarkThresholds, load_benchmark_suite

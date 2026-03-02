@@ -20,7 +20,8 @@ class DatasetProfiler:
             else:
                 relation = con.sql(f"SELECT * FROM read_json_auto('{escaped}')")
             columns = [c[0] for c in relation.description]
-            count = relation.count("*").fetchone()[0]
+            count_row = relation.count("*").fetchone()
+            count = int(count_row[0]) if count_row is not None else 0
             return {"columns": columns, "row_count": int(count)}
         finally:
             con.close()
