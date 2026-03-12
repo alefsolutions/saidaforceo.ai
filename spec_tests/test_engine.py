@@ -4,8 +4,48 @@ import pandas as pd
 import pytest
 
 from saida import Saida
+from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
 from saida.exceptions import ValidationError
 from saida.schemas import Dataset
+
+
+class FakeLlmProvider(BaseLlmProvider):
+    """Deterministic provider used to exercise the optional LLM path in tests."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        lowered = question.lower()
+        if "clarify" in lowered:
+            return IntentProposal(status="clarify", message="Please clarify the target metric.", warnings=["clarification requested"])
+        if "refuse" in lowered:
+            return IntentProposal(status="refuse", message="We are not able to provide this information at this time.", warnings=["request refused"])
+
+        group_by = ["region"] if "by region" in lowered else None
+        time_reference = {"type": "month_name", "value": "march", "month": "3"} if "march" in lowered else None
+        task_type_hint = "diagnostic" if "why" in lowered else "descriptive"
+        return IntentProposal(
+            status="ready",
+            task_type_hint=task_type_hint,
+            target="revenue",
+            group_by=group_by,
+            time_reference=time_reference,
+            warnings=["llm prompt path used"],
+        )
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(
+            status="ready",
+            summary=f"LLM_RESPONSE_V1: {response_context.deterministic_summary}",
+            warnings=["llm response path used"],
+        )
 
 
 def test_engine_load_context_parses_markdown() -> None:
@@ -36,6 +76,8 @@ def test_engine_exposes_current_capabilities() -> None:
         "train": False,
         "predict": False,
         "forecast": False,
+        "llm_prompting": False,
+        "llm_reasoning": False,
     }
 
 
@@ -124,6 +166,48 @@ def test_engine_analyze_without_context_has_no_context_trace_stage() -> None:
     assert all(event.stage != "context" for event in result.trace)
 
 
+def test_engine_with_llm_provider_exposes_llm_capabilities() -> None:
+    engine = Saida(llm_provider=FakeLlmProvider())
+    engine.config.llm.enabled = True
+
+    capabilities = engine.capabilities()
+
+    assert capabilities["llm_prompting"] is True
+    assert capabilities["llm_reasoning"] is True
+
+
+def test_engine_returns_clarification_when_llm_requests_it() -> None:
+    engine = Saida(llm_provider=FakeLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame({"revenue": [100.0, 90.0], "region": ["West", "East"]}),
+    )
+
+    result = engine.analyze(dataset, "clarify this request")
+
+    assert result.summary == "Please clarify the target metric."
+    assert result.plan.task_type == "clarification"
+    assert result.tables == []
+
+
+def test_engine_returns_refusal_when_llm_declines_request() -> None:
+    engine = Saida(llm_provider=FakeLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame({"revenue": [100.0, 90.0], "region": ["West", "East"]}),
+    )
+
+    result = engine.analyze(dataset, "refuse this request")
+
+    assert result.summary == "We are not able to provide this information at this time."
+    assert result.plan.task_type == "unavailable"
+    assert result.metrics == []
+
+
 _ENGINE_PROFILE_CASES = [
     (
         index,
@@ -149,3 +233,60 @@ def test_engine_profiles_many_valid_datasets(case_id: int, dataframe: pd.DataFra
     assert profile.dataset_name == f"sales_{case_id}"
     assert profile.row_count == 3
     assert "posted_at" in profile.time_columns
+
+
+_DIRECT_NLP_CASES = [
+    (
+        index,
+        pd.DataFrame(
+            {
+                "posted_at": ["2026-02-01", "2026-03-01", "2026-04-01"],
+                "revenue": [float(index + 20), float(index + 10), float(index + 5)],
+                "region": ["West", "East", "West"],
+            }
+        ),
+        "Why did revenue drop in March?" if index % 2 == 0 else "Show revenue by region",
+    )
+    for index in range(1, 51)
+]
+
+
+@pytest.mark.parametrize(("case_id", "dataframe", "question"), _DIRECT_NLP_CASES)
+def test_engine_direct_nlp_path_across_many_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
+    engine = Saida()
+    dataset = Dataset(name=f"direct_{case_id}", source_type="pandas", data=dataframe)
+
+    result = engine.analyze(dataset, question)
+
+    assert result.artifacts["request"]["options"]["nlp_backend"] in {"rules", "transformer+rules"}
+    assert all(event.stage != "llm" for event in result.trace)
+    assert result.summary
+
+
+_LLM_CASES = [
+    (
+        index,
+        pd.DataFrame(
+            {
+                "posted_at": ["2026-02-01", "2026-03-01", "2026-04-01"],
+                "revenue": [float(index + 30), float(index + 20), float(index + 10)],
+                "region": ["West", "East", "West"],
+            }
+        ),
+        "Why did revenue drop in March by region?" if index % 2 == 0 else "Show revenue by region in March",
+    )
+    for index in range(1, 51)
+]
+
+
+@pytest.mark.parametrize(("case_id", "dataframe", "question"), _LLM_CASES)
+def test_engine_llm_prompt_and_response_path_across_many_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
+    engine = Saida(llm_provider=FakeLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(name=f"llm_{case_id}", source_type="pandas", data=dataframe)
+
+    result = engine.analyze(dataset, question)
+
+    assert result.summary.startswith("LLM_RESPONSE_V1:")
+    assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
+    assert any(event.stage == "llm" for event in result.trace)

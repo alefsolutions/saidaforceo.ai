@@ -7,7 +7,8 @@ import pandas as pd
 from saida.compute import BaselineMlEngine, DuckDBComputeEngine, StatsComputeEngine
 from saida.config import SaidaConfig
 from saida.context import SourceContextParser
-from saida.exceptions import ValidationError
+from saida.exceptions import ReasoningError, ValidationError
+from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.nlp import RequestNormalizer
 from saida.planning import AnalysisPlanner
 from saida.profiling import DatasetProfiler
@@ -15,13 +16,17 @@ from saida.reasoning import ResultSummarizer
 from saida.results import ResultBuilder
 from saida.schemas import (
     AnalysisResult,
+    AnalysisPlan,
+    AnalysisRequest,
     Dataset,
     DatasetProfile,
     ExecutionTraceEvent,
     ForecastAnalysisResult,
     ModelSpec,
+    Metric,
     PredictionResult,
     SourceContext,
+    TableArtifact,
     TrainResult,
 )
 
@@ -29,7 +34,7 @@ from saida.schemas import (
 class Saida:
     """Coordinate SAIDA modules through a simple Python API."""
 
-    def __init__(self, config: SaidaConfig | None = None) -> None:
+    def __init__(self, config: SaidaConfig | None = None, llm_provider: BaseLlmProvider | None = None) -> None:
         self.config = config or SaidaConfig()
         self.profiler = DatasetProfiler()
         self.normalizer = RequestNormalizer(self.config.nlp)
@@ -39,6 +44,7 @@ class Saida:
         self.ml = BaselineMlEngine()
         self.summarizer = ResultSummarizer()
         self.results = ResultBuilder()
+        self.llm_provider = llm_provider or build_llm_provider(self.config.llm)
 
     def profile(self, dataset: Dataset) -> DatasetProfile:
         """Profile a dataset deterministically."""
@@ -53,6 +59,8 @@ class Saida:
             "train": False,
             "predict": False,
             "forecast": False,
+            "llm_prompting": bool(self.llm_provider and self.config.llm.use_for_prompting),
+            "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
@@ -65,8 +73,32 @@ class Saida:
         profile = self.profile(dataset)
         trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
 
-        request, request_warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+        request, request_warnings, llm_trace_event = self._build_request(question, dataset, profile)
+        if llm_trace_event is not None:
+            trace.append(llm_trace_event)
         trace.append(self._trace("nlp", "request normalized", {"task_type": request.task_type_hint, "target": request.target}))
+
+        if request.options.get("analysis_outcome") == "clarify":
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale="Optional LLM interpretation requested clarification before planning.",
+                steps=[],
+                warnings=request_warnings,
+            )
+            summary = request.options.get("llm_message") or "We need clarification before running this analysis."
+            trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
+            return self.results.build_analysis_result(summary, [], [], request_warnings, plan, request, profile, trace)
+
+        if request.options.get("analysis_outcome") == "refuse":
+            plan = AnalysisPlan(
+                task_type="unavailable",
+                rationale="Optional LLM interpretation declined the request before planning.",
+                steps=[],
+                warnings=request_warnings,
+            )
+            summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
+            trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
+            return self.results.build_analysis_result(summary, [], [], request_warnings, plan, request, profile, trace)
 
         plan = self.planner.build_plan(request, profile, dataset.context)
         self.planner.validate(plan)
@@ -197,7 +229,10 @@ class Saida:
                         tables.append(comparison_table)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
-        summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
+        deterministic_summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
+        summary, llm_reasoning_warning = self._build_summary(question, request, profile, plan, metrics, tables, warnings, deterministic_summary)
+        if llm_reasoning_warning is not None:
+            warnings = self._merge_warnings(warnings, [llm_reasoning_warning])
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
         return self.results.build_analysis_result(summary, metrics, tables, warnings, plan, request, profile, trace)
 
@@ -237,6 +272,112 @@ class Saida:
                 if warning not in merged:
                     merged.append(warning)
         return merged
+
+    def _build_request(
+        self,
+        question: str,
+        dataset: Dataset,
+        profile: DatasetProfile,
+    ) -> tuple[AnalysisRequest, list[str], ExecutionTraceEvent | None]:
+        if not self.llm_provider or not self.config.llm.use_for_prompting:
+            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            return request, warnings, None
+
+        try:
+            proposal = self.llm_provider.interpret_prompt(
+                question=question,
+                dataset_name=dataset.name,
+                profile_summary=self._profile_summary(profile),
+                context_summary=self._context_summary(dataset.context),
+            )
+        except ReasoningError:
+            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            warnings.append("Optional LLM prompting failed; falling back to deterministic request normalization.")
+            return request, warnings, self._trace("llm", "prompt interpretation failed", {"fallback": "rules"})
+
+        if proposal is None:
+            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            warnings.append("Optional LLM prompting was unavailable; falling back to deterministic request normalization.")
+            return request, warnings, self._trace("llm", "prompt interpretation skipped", {"fallback": "rules"})
+
+        if proposal.status in {"clarify", "refuse"}:
+            request = AnalysisRequest(
+                question=question,
+                task_type_hint=None,
+                target=None,
+                options={
+                    "dataset": dataset.name,
+                    "nlp_backend": "llm+validation",
+                    "analysis_outcome": proposal.status,
+                    "llm_message": proposal.message,
+                },
+            )
+            return request, list(proposal.warnings), self._trace("llm", "prompt interpretation returned early outcome", {"status": proposal.status})
+
+        request, warnings = self.normalizer.normalize_with_proposal(question, dataset, profile, proposal, dataset.context)
+        return request, warnings, self._trace("llm", "prompt interpreted by optional LLM", {"status": proposal.status})
+
+    def _build_summary(
+        self,
+        question: str,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        plan: AnalysisPlan,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+        warnings: list[str],
+        deterministic_summary: str,
+    ) -> tuple[str, str | None]:
+        if not self.llm_provider or not self.config.llm.use_for_reasoning:
+            return deterministic_summary, None
+
+        response_context = ResponseContext(
+            question=question,
+            dataset_name=profile.dataset_name,
+            task_type=plan.task_type,
+            deterministic_summary=deterministic_summary,
+            metric_lookup={metric.name: metric.value for metric in metrics},
+            table_index={
+                table.name: {
+                    "rows": int(len(table.dataframe)),
+                    "columns": list(table.dataframe.columns),
+                    "description": table.description,
+                }
+                for table in tables
+            },
+            warnings=list(warnings),
+        )
+        try:
+            proposal = self.llm_provider.generate_response(response_context)
+        except ReasoningError:
+            return deterministic_summary, "Optional LLM response generation failed; using deterministic summary."
+
+        if proposal is None:
+            return deterministic_summary, "Optional LLM response generation was unavailable; using deterministic summary."
+        if proposal.status != "ready" or not proposal.summary:
+            return deterministic_summary, "Optional LLM response was invalid; using deterministic summary."
+        return proposal.summary, None
+
+    def _profile_summary(self, profile: DatasetProfile) -> str:
+        return (
+            f"rows={profile.row_count}; columns={profile.column_count}; "
+            f"measures={profile.measure_columns}; dimensions={profile.dimension_columns}; "
+            f"time_columns={profile.time_columns}; identifiers={profile.identifier_columns}"
+        )
+
+    def _context_summary(self, context: SourceContext | None) -> str | None:
+        if context is None:
+            return None
+        parts: list[str] = []
+        if context.metric_definitions:
+            parts.append(f"metrics={list(context.metric_definitions.keys())}")
+        if context.trusted_date_fields:
+            parts.append(f"trusted_dates={context.trusted_date_fields}")
+        if context.preferred_identifiers:
+            parts.append(f"identifiers={context.preferred_identifiers}")
+        if context.caveats:
+            parts.append(f"caveats={context.caveats}")
+        return "; ".join(parts) if parts else None
 
     def _validate_dataset(self, dataset: Dataset) -> None:
         if not isinstance(dataset.data, pd.DataFrame):

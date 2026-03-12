@@ -3,7 +3,8 @@
 SAIDA follows a layered architecture:
 
 User Prompt
--> NLP Understanding
+-> Optional LLM Interface
+-> NLP Understanding / Validation
 -> Adapters (data ingestion)
 -> Context (semantic markdown)
 -> Profiling (dataset intelligence)
@@ -40,8 +41,26 @@ Typical responsibilities:
 
 Outputs a typed `AnalysisRequest` used by the planning layer.
 
-This layer should use modern transformer-based NLP for request understanding.
+This layer validates prompt interpretation against discovered schema and semantic context.
 It should not compute analytical facts.
+
+If an optional LLM provider is enabled, the model may propose intent first.
+The validation layer decides whether that proposal becomes an `AnalysisRequest`, needs clarification, or must be refused.
+
+---
+
+### Optional LLM Interface Layer
+
+Responsible for:
+
+- interpreting natural prompts in a more flexible way
+- proposing candidate intent fields
+- producing optional post-compute response wording
+
+This layer must remain provider and model agnostic.
+
+The LLM may propose.
+The validation and compute layers decide.
 
 ---
 
@@ -144,12 +163,13 @@ Contains:
 
 ## LLM Positioning
 
-The reasoning layer should remain LLM-provider agnostic.
+The optional LLM layer should remain LLM-provider agnostic.
 
 Examples:
 
 - OpenAI-compatible chat models
 - local models
+- Ollama-hosted local models
 - LangChain-integrated models
 - direct SDK integrations
 

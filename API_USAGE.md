@@ -22,6 +22,8 @@ print(result.summary)
 
 The current non-ML build supports month-based time references reliably. Quarter-style prompts are documented as future work.
 
+When an optional LLM provider is configured, SAIDA lets the model interpret the prompt first and then validates that proposal against the dataset profile and context before creating an `AnalysisRequest`.
+
 ---
 
 # Profile Example
@@ -51,6 +53,8 @@ Current output in this repo build:
     "train": False,
     "predict": False,
     "forecast": False,
+    "llm_prompting": False,
+    "llm_reasoning": False,
 }
 ```
 
@@ -61,6 +65,13 @@ Current output in this repo build:
 ```bash
 $env:PYTHONPATH="src"
 python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March?"
+```
+
+Optional LLM-enhanced CLI example:
+
+```bash
+$env:PYTHONPATH="src"
+python -m saida.cli.main analyze --csv examples/sales.csv --question "Why did revenue drop in March?" --llm-provider ollama --llm-model llama3.1
 ```
 
 ---

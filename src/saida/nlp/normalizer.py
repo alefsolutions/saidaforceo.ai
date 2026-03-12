@@ -8,6 +8,7 @@ from calendar import month_abbr
 
 from saida.config import NlpConfig
 from saida.exceptions import ValidationError
+from saida.llm import IntentProposal
 from saida.schemas import AnalysisRequest, Dataset, DatasetProfile, SourceContext
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
@@ -69,6 +70,70 @@ class RequestNormalizer:
             options={"dataset": dataset.name, "nlp_backend": "transformer+rules" if self.config.enable_transformers else "rules"},
         )
         return request, warnings
+
+    def normalize_with_proposal(
+        self,
+        question: str,
+        dataset: Dataset,
+        profile: DatasetProfile,
+        proposal: IntentProposal,
+        context: SourceContext | None = None,
+    ) -> tuple[AnalysisRequest, list[str]]:
+        """Normalize a prompt using a validated LLM proposal plus deterministic fallbacks."""
+        self._validate_inputs(question, dataset, profile)
+        warnings = list(proposal.warnings)
+
+        rule_task_type = self._classify_task(question)
+        rule_target = self._resolve_target(question, profile, context)
+        rule_time_reference = self._extract_time_reference(question)
+        rule_horizon = self._extract_horizon(question)
+        rule_group_by = self._extract_group_by(question, profile)
+        rule_filters = self._extract_filters(question, profile, context)
+
+        task_type_hint = self._validate_task_type(proposal.task_type_hint) or rule_task_type
+        target = self._resolve_candidate_column(proposal.target, profile, context)
+        if target is None:
+            target = rule_target
+        group_by = self._resolve_candidate_group_by(proposal.group_by, profile)
+        if group_by is None:
+            group_by = rule_group_by
+        filters = self._resolve_candidate_filters(proposal.filters, profile)
+        if filters is None:
+            filters = rule_filters
+        time_reference = self._resolve_candidate_time_reference(proposal.time_reference)
+        if time_reference is None:
+            time_reference = rule_time_reference
+        horizon = proposal.horizon if proposal.horizon and proposal.horizon > 0 else rule_horizon
+
+        if target is None and profile.measure_columns:
+            warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
+            target = profile.measure_columns[0]
+        if target is None and not profile.measure_columns:
+            raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+
+        request = AnalysisRequest(
+            question=question,
+            task_type_hint=task_type_hint,
+            target=target,
+            horizon=horizon,
+            filters=filters,
+            group_by=group_by,
+            time_reference=time_reference,
+            options={
+                "dataset": dataset.name,
+                "nlp_backend": "llm+validation",
+                "llm_status": proposal.status,
+            },
+        )
+        return request, warnings
+
+    def _validate_inputs(self, question: str, dataset: Dataset, profile: DatasetProfile) -> None:
+        if not question or not question.strip():
+            raise ValidationError("Analysis question cannot be empty.")
+        if dataset.data.empty:
+            raise ValidationError("Cannot analyze an empty dataset.")
+        if profile.column_count == 0:
+            raise ValidationError("Dataset profile contains no columns.")
 
     def _classify_task(self, question: str) -> str:
         lowered = question.lower()
@@ -196,3 +261,70 @@ class RequestNormalizer:
                 candidate_values.setdefault(field_name, [])
 
         return candidate_values
+
+    def _validate_task_type(self, task_type_hint: str | None) -> str | None:
+        if task_type_hint in TASK_LABELS:
+            return task_type_hint
+        return None
+
+    def _resolve_candidate_column(
+        self,
+        candidate_name: str | None,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+    ) -> str | None:
+        if not candidate_name:
+            return None
+        lowered_candidate = candidate_name.lower().strip()
+        measure_map = {column.lower(): column for column in profile.measure_columns}
+        if lowered_candidate in measure_map:
+            return measure_map[lowered_candidate]
+        profile_columns = {column.name.lower(): column.name for column in profile.columns}
+        if lowered_candidate in profile_columns:
+            return profile_columns[lowered_candidate]
+        if context:
+            metric_map = {metric_name.lower(): metric_name for metric_name in context.metric_definitions}
+            if lowered_candidate in metric_map:
+                resolved = metric_map[lowered_candidate]
+                return profile_columns.get(resolved.lower(), resolved)
+        return None
+
+    def _resolve_candidate_group_by(
+        self,
+        group_by: list[str] | None,
+        profile: DatasetProfile,
+    ) -> list[str] | None:
+        if not group_by:
+            return None
+        profile_columns = {column.name.lower(): column.name for column in profile.columns}
+        resolved: list[str] = []
+        for candidate_name in group_by:
+            lowered_candidate = candidate_name.lower().strip()
+            if lowered_candidate in profile_columns:
+                resolved.append(profile_columns[lowered_candidate])
+        return list(dict.fromkeys(resolved)) or None
+
+    def _resolve_candidate_filters(
+        self,
+        filters: dict[str, str] | None,
+        profile: DatasetProfile,
+    ) -> dict[str, str] | None:
+        if not filters:
+            return None
+        profile_columns = {column.name.lower(): column.name for column in profile.columns}
+        resolved: dict[str, str] = {}
+        for column_name, value in filters.items():
+            lowered_column = column_name.lower().strip()
+            if lowered_column in profile_columns and isinstance(value, str) and value.strip():
+                resolved[profile_columns[lowered_column]] = value.strip()
+        return resolved or None
+
+    def _resolve_candidate_time_reference(self, time_reference: dict[str, str] | None) -> dict[str, str] | None:
+        if not time_reference:
+            return None
+        if not isinstance(time_reference, dict):
+            return None
+        time_type = time_reference.get("type")
+        if time_type not in {"month_name", "quarter", "relative_period"}:
+            return None
+        return {str(key): str(value) for key, value in time_reference.items() if value is not None}

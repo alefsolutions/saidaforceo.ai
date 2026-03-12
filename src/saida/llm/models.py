@@ -1,0 +1,46 @@
+"""Typed objects for optional LLM integrations."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass(slots=True)
+class IntentProposal:
+    """Structured prompt interpretation proposed by an optional LLM."""
+
+    status: str = "ready"
+    task_type_hint: str | None = None
+    target: str | None = None
+    horizon: int | None = None
+    filters: dict[str, str] | None = None
+    group_by: list[str] | None = None
+    time_reference: dict[str, str] | None = None
+    message: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    raw_response: str | None = None
+
+
+@dataclass(slots=True)
+class ResponseProposal:
+    """Structured natural-language response proposed by an optional LLM."""
+
+    status: str = "ready"
+    summary: str | None = None
+    message: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    raw_response: str | None = None
+
+
+@dataclass(slots=True)
+class ResponseContext:
+    """Deterministic payload passed to an optional LLM response provider."""
+
+    question: str
+    dataset_name: str
+    task_type: str
+    deterministic_summary: str
+    metric_lookup: dict[str, Any]
+    table_index: dict[str, dict[str, Any]]
+    warnings: list[str]

@@ -36,3 +36,5 @@ Context provides:
 - caveats
 
 This improves NLP request normalization, planning quality, and optional reasoning quality.
+
+It also improves optional LLM interpretation, because LLM proposals are validated against both discovered dataset structure and this semantic context before SAIDA accepts them.

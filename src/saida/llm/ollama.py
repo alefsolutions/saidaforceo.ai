@@ -1,0 +1,160 @@
+"""Ollama-backed provider implementation."""
+
+from __future__ import annotations
+
+import json
+from urllib import error, request
+
+from saida.config import LlmConfig
+from saida.exceptions import ReasoningError
+from saida.llm.base import BaseLlmProvider
+from saida.llm.models import IntentProposal, ResponseContext, ResponseProposal
+
+
+class OllamaLlmProvider(BaseLlmProvider):
+    """Use a local Ollama model for prompt interpretation and optional response wording."""
+
+    provider_name = "ollama"
+
+    def __init__(self, config: LlmConfig) -> None:
+        self.config = config
+        self.model = config.model or "llama3.1"
+        self.base_url = (config.base_url or "http://127.0.0.1:11434").rstrip("/")
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        prompt = self._build_intent_prompt(question, dataset_name, profile_summary, context_summary)
+        payload = self._generate_json(prompt)
+        if payload is None:
+            return None
+
+        return IntentProposal(
+            status=str(payload.get("status", "ready")),
+            task_type_hint=self._maybe_string(payload.get("task_type_hint")),
+            target=self._maybe_string(payload.get("target")),
+            horizon=self._maybe_int(payload.get("horizon")),
+            filters=self._maybe_string_dict(payload.get("filters")),
+            group_by=self._maybe_string_list(payload.get("group_by")),
+            time_reference=self._maybe_string_dict(payload.get("time_reference")),
+            message=self._maybe_string(payload.get("message")),
+            warnings=self._maybe_string_list(payload.get("warnings")) or [],
+            raw_response=json.dumps(payload),
+        )
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        prompt = self._build_response_prompt(response_context)
+        payload = self._generate_json(prompt)
+        if payload is None:
+            return None
+
+        return ResponseProposal(
+            status=str(payload.get("status", "ready")),
+            summary=self._maybe_string(payload.get("summary")),
+            message=self._maybe_string(payload.get("message")),
+            warnings=self._maybe_string_list(payload.get("warnings")) or [],
+            raw_response=json.dumps(payload),
+        )
+
+    def _generate_json(self, prompt: str) -> dict[str, object] | None:
+        body = {
+            "model": self.model,
+            "prompt": prompt,
+            "format": "json",
+            "stream": False,
+        }
+        if self.config.options:
+            body["options"] = self.config.options
+
+        http_request = request.Request(
+            f"{self.base_url}/api/generate",
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(http_request, timeout=self.config.timeout_seconds) as response:
+                raw_payload = json.loads(response.read().decode("utf-8"))
+        except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise ReasoningError("Ollama request failed during optional LLM handling.") from exc
+
+        response_text = raw_payload.get("response")
+        if not isinstance(response_text, str) or not response_text.strip():
+            return None
+
+        try:
+            parsed = json.loads(response_text)
+        except json.JSONDecodeError as exc:
+            raise ReasoningError("Ollama returned invalid JSON for optional LLM handling.") from exc
+
+        if not isinstance(parsed, dict):
+            raise ReasoningError("Ollama returned a non-object JSON payload.")
+        return parsed
+
+    def _build_intent_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> str:
+        return (
+            "You are a prompt interpreter for SAIDA.\n"
+            "Return JSON only.\n"
+            'Allowed status values: "ready", "clarify", "refuse".\n'
+            "Do not invent columns.\n"
+            "If uncertain, use clarify or refuse.\n"
+            "Return keys: status, task_type_hint, target, horizon, filters, group_by, time_reference, message, warnings.\n"
+            f"Dataset: {dataset_name}\n"
+            f"Profile summary: {profile_summary}\n"
+            f"Context summary: {context_summary or 'none'}\n"
+            f"Question: {question}\n"
+        )
+
+    def _build_response_prompt(self, response_context: ResponseContext) -> str:
+        return (
+            "You are a response writer for SAIDA.\n"
+            "Return JSON only.\n"
+            'Allowed status values: "ready", "refuse".\n'
+            "Do not invent metrics or facts.\n"
+            "Use the deterministic summary and metric payload only.\n"
+            "Return keys: status, summary, message, warnings.\n"
+            f"Question: {response_context.question}\n"
+            f"Dataset: {response_context.dataset_name}\n"
+            f"Task type: {response_context.task_type}\n"
+            f"Deterministic summary: {response_context.deterministic_summary}\n"
+            f"Metric lookup: {json.dumps(response_context.metric_lookup, ensure_ascii=True)}\n"
+            f"Table index: {json.dumps(response_context.table_index, ensure_ascii=True)}\n"
+            f"Warnings: {json.dumps(response_context.warnings, ensure_ascii=True)}\n"
+        )
+
+    def _maybe_int(self, value: object) -> int | None:
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _maybe_string(self, value: object) -> str | None:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        return None
+
+    def _maybe_string_dict(self, value: object) -> dict[str, str] | None:
+        if not isinstance(value, dict):
+            return None
+        converted: dict[str, str] = {}
+        for key, item in value.items():
+            if isinstance(key, str) and isinstance(item, str):
+                converted[key] = item
+        return converted or None
+
+    def _maybe_string_list(self, value: object) -> list[str] | None:
+        if not isinstance(value, list):
+            return None
+        return [item for item in value if isinstance(item, str)]

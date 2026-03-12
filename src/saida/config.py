@@ -25,8 +25,23 @@ class ReasoningConfig:
 
 
 @dataclass(slots=True)
+class LlmConfig:
+    """Configuration for optional model-backed prompt and response handling."""
+
+    enabled: bool = False
+    provider: str | None = None
+    model: str | None = None
+    base_url: str | None = None
+    use_for_prompting: bool = True
+    use_for_reasoning: bool = True
+    timeout_seconds: int = 20
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class SaidaConfig:
     """Top-level configuration for the SAIDA engine."""
 
     nlp: NlpConfig = field(default_factory=NlpConfig)
     reasoning: ReasoningConfig = field(default_factory=ReasoningConfig)
+    llm: LlmConfig = field(default_factory=LlmConfig)

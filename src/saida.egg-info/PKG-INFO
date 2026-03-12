@@ -1,3 +1,33 @@
+Metadata-Version: 2.4
+Name: saida
+Version: 0.1.0
+Summary: SAIDA lightweight deterministic analytics library
+Keywords: analytics,duckdb,python,deterministic,data-analysis
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: duckdb>=1.1.0
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: openpyxl>=3.1.5
+Requires-Dist: scikit-learn>=1.5.0
+Requires-Dist: scipy>=1.13.0
+Requires-Dist: statsmodels>=0.14.0
+Requires-Dist: transformers>=4.45.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0.0; extra == "dev"
+Requires-Dist: ruff>=0.6.0; extra == "dev"
+Requires-Dist: mypy>=1.11.0; extra == "dev"
+Requires-Dist: pre-commit>=3.8.0; extra == "dev"
+Requires-Dist: types-PyYAML>=6.0.12.20250915; extra == "dev"
+Dynamic: license-file
+
 # SAIDA
 
 SAIDA is a **lightweight Python analytical reasoning library**.
@@ -14,7 +44,7 @@ Core philosophy:
 
 SAIDA helps developers:
 
-- Convert natural-language questions into structured analysis requests using strict NLP validation with an optional model-agnostic LLM interpretation layer
+- Convert natural-language questions into structured analysis requests using rule-based normalization with an optional transformer hook
 - Run deterministic analytics
 - Perform statistical analysis
 - Attach semantic context to datasets
@@ -33,8 +63,7 @@ The library focuses on **structured analytics first**, with optional semantic re
 
 Prompt handling follows a three-stage design:
 
-- optional LLM interpretation proposes intent from the user question
-- strict NLP validation converts accepted intent into a structured `AnalysisRequest`
+- request normalization extracts structured intent from the user question
 - deterministic compute produces facts, metrics, and model outputs
 - optional LLM reasoning explains computed outputs without changing them
 
@@ -87,13 +116,6 @@ python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sal
 python -m saida.cli.main profile --csv examples/sales.csv --json
 ```
 
-You can also enable an optional local or hosted LLM provider for prompt interpretation and response wording:
-
-```bash
-$env:PYTHONPATH="src"
-python -m saida.cli.main analyze --csv examples/sales.csv --question "Why did revenue drop in March?" --llm-provider ollama --llm-model llama3.1
-```
-
 The repo also includes runnable examples:
 
 ```bash
@@ -108,14 +130,12 @@ python examples/run_analysis.py
 
 ### Prompt Understanding
 
-- strict rule-based validation against discovered schema and semantic context
-- optional model-agnostic LLM interpretation before validation
+- rule-based request normalization with an optional transformer classifier hook
 - intent classification
 - metric and target extraction
 - date and period extraction
 - filter and grouping hint extraction
 - structured `AnalysisRequest` generation
-- clarification or refusal when no valid mapping can be established safely
 
 ### Data Analytics
 
@@ -139,16 +159,7 @@ You can inspect the current public surface directly:
 
 ```python
 engine.capabilities()
-# {
-#   'analyze': True,
-#   'profile': True,
-#   'load_context': True,
-#   'train': False,
-#   'predict': False,
-#   'forecast': False,
-#   'llm_prompting': False,
-#   'llm_reasoning': False,
-# }
+# {'analyze': True, 'profile': True, 'load_context': True, 'train': False, 'predict': False, 'forecast': False}
 ```
 
 ### Semantic Context
@@ -160,9 +171,7 @@ Attach Markdown documentation to data sources to provide business meaning. This 
 SAIDA keeps reasoning model-agnostic.
 
 - Any compatible LLM provider may be used
-- LLM use is optional and falls back to deterministic behavior when unavailable
 - **LLMs interpret computed results, not generate facts**
-- **LLM prompt proposals must pass strict validation before SAIDA creates an `AnalysisRequest`**
 - Core analytics workflows remain usable without an LLM
 
 ---
@@ -174,12 +183,11 @@ The current implementation is focused on the non-ML deterministic core:
 - CSV, Excel, JSON, Pandas, and SQLite-backed SQL adapters
 - semantic markdown context parsing
 - dataset profiling and readiness hints
-- request normalization with strict rules and an optional model-agnostic LLM interpretation layer
+- request normalization with rules and an optional transformer hook
 - deterministic planning
 - DuckDB analytics for summaries, trends, grouped comparisons, contribution analysis, and top movers
 - deterministic statistical summaries, correlations, anomaly checks, and time-series diagnostics
 - working CLI commands for `version`, `profile`, and `analyze` against CSV input
-- optional model-agnostic LLM support for prompt interpretation and response wording, including an Ollama provider
 
 `train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
 

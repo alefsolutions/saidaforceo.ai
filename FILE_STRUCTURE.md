@@ -9,6 +9,7 @@ saida/
 |-- schemas/
 |-- adapters/
 |-- context/
+|-- llm/
 |-- nlp/
 |-- profiling/
 |-- planning/
@@ -30,6 +31,7 @@ Coordinates:
 
 - adapters
 - context
+- llm
 - nlp
 - profiling
 - planning
@@ -77,13 +79,28 @@ Allows developers to attach documentation to datasets.
 
 ---
 
-## nlp/
+## llm/
 
-Handles prompt understanding before planning.
+Optional model-agnostic provider layer.
 
 Typical responsibilities:
 
-- transformer-based request understanding
+- interpret natural prompts before validation
+- generate optional response wording after deterministic compute
+- expose provider adapters such as Ollama without changing core contracts
+
+This layer must not bypass validation, planning, or deterministic compute.
+
+---
+
+## nlp/
+
+Handles prompt validation and request normalization before planning.
+
+Typical responsibilities:
+
+- strict validation of optional LLM proposals
+- deterministic request understanding fallbacks
 - intent classification
 - metric extraction
 - target extraction

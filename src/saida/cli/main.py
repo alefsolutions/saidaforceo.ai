@@ -9,6 +9,7 @@ from pathlib import Path
 
 from saida import Saida
 from saida.adapters import CSVAdapter
+from saida.config import LlmConfig, SaidaConfig
 from saida.schemas import AnalysisResult, DatasetProfile
 
 
@@ -32,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument("--json", action="store_true", help="Print the analysis result as JSON.")
     analyze_parser.add_argument("--show-plan", action="store_true", help="Print plan steps after the summary.")
     analyze_parser.add_argument("--show-trace", action="store_true", help="Print execution trace events after the summary.")
+    analyze_parser.add_argument("--llm-provider", help="Optional LLM provider name, for example 'ollama'.")
+    analyze_parser.add_argument("--llm-model", help="Optional LLM model name.")
+    analyze_parser.add_argument("--llm-base-url", help="Optional LLM provider base URL.")
 
     return parser
 
@@ -60,7 +64,8 @@ def main() -> int:
 
     if args.command == "analyze":
         dataset = _load_csv_dataset(args.csv, args.context)
-        result = Saida().analyze(dataset, args.question)
+        engine = Saida(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
+        result = engine.analyze(dataset, args.question)
         if args.json:
             print(json.dumps(_analysis_payload(result), indent=2))
         else:
@@ -124,3 +129,20 @@ def _analysis_payload(result: AnalysisResult) -> dict[str, object]:
         },
         "trace": [asdict(event) for event in result.trace],
     }
+
+
+def _build_cli_config(provider: str | None, model: str | None, base_url: str | None) -> SaidaConfig:
+    """Build a minimal CLI config with optional LLM settings."""
+    if not provider:
+        return SaidaConfig()
+
+    return SaidaConfig(
+        llm=LlmConfig(
+            enabled=True,
+            provider=provider,
+            model=model,
+            base_url=base_url,
+            use_for_prompting=True,
+            use_for_reasoning=True,
+        )
+    )

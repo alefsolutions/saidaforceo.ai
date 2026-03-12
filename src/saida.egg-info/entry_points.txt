@@ -1,0 +1,2 @@
+[console_scripts]
+saida = saida.cli.main:main

@@ -19,6 +19,7 @@ Input Data
 -> Adapter Load
 -> Optional Markdown Context Attach
 -> Dataset Profiling
+-> Optional LLM Prompt Interpretation
 -> NLP Request Normalization
 -> Plan Generation
 -> Plan Validation
@@ -107,7 +108,12 @@ This stage should happen before planning.
 
 SAIDA converts raw user input into a normalized `AnalysisRequest`.
 
-In the current repo build, this stage uses deterministic rules first and exposes an optional transformer classification hook. It extracts:
+In the current repo build, this stage validates prompt interpretation against discovered dataset structure and semantic context.
+
+If an LLM provider is enabled, the model may propose intent first.
+That proposal must be validated before SAIDA accepts it.
+
+This stage extracts:
 - question
 - task hint
 - target
@@ -119,6 +125,10 @@ In the current repo build, this stage uses deterministic rules first and exposes
 This normalized request is the planning input.
 
 The NLP layer should extract structured signal, not analytical conclusions.
+
+If no valid mapping can be established safely, SAIDA should either:
+- ask for clarification, or
+- decline cleanly
 
 ---
 
@@ -216,7 +226,7 @@ Reasoning uses:
 Reasoning must not override computed facts.
 
 The reasoning layer should be LLM-agnostic so it can support direct SDK integrations, LangChain-wrapped models, or local models.
-The current repo build ships a deterministic summarizer and does not yet integrate a live LLM provider.
+The current repo build ships a deterministic summarizer and also supports optional model-agnostic LLM response generation with deterministic fallback.
 
 ---
 
