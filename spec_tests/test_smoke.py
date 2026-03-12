@@ -10,6 +10,7 @@ from saida import Saida
 from saida.adapters import CSVAdapter, JSONAdapter, PandasAdapter, SQLAdapter
 from saida.context import SourceContextParser
 from saida.exceptions import ModelTrainingError
+from saida.profiling import DatasetProfiler
 from saida.schemas import Dataset
 
 
@@ -194,3 +195,56 @@ def test_train_forecast_and_predict_raise_not_implemented() -> None:
 
     with pytest.raises(ModelTrainingError):
         engine.forecast(dataset, target="sales", horizon=2)
+
+
+def test_profiler_detects_identifiers_dimensions_and_measures() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "customer_id": ["c1", "c2", "c3", "c4"],
+            "region": ["West", "West", "East", "East"],
+            "revenue": [100.0, 120.0, 80.0, 90.0],
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+
+    assert "customer_id" in profile.identifier_columns
+    assert "region" in profile.dimension_columns
+    assert "revenue" in profile.measure_columns
+    assert "posted_at" in profile.time_columns
+
+
+def test_profiler_marks_low_cardinality_strings_as_category() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "segment": ["SMB", "SMB", "Enterprise", "Enterprise", "SMB"],
+            "value": [1, 2, 3, 4, 5],
+        }
+    )
+    dataset = Dataset(name="segments", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+    segment_profile = next(column for column in profile.columns if column.name == "segment")
+
+    assert segment_profile.inferred_type == "category"
+    assert segment_profile.is_dimension_candidate is True
+
+
+def test_profiler_warns_on_duplicates_and_limited_readiness() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "id": [1, 1, 2],
+            "flag": ["yes", "yes", "no"],
+        }
+    )
+    dataset = Dataset(name="small", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+
+    assert profile.duplicate_row_count == 1
+    assert "Dataset contains duplicate rows." in profile.warnings
+    assert profile.ml_readiness is not None
+    assert profile.ml_readiness.forecasting_ready is False
+    assert any("No time column" in warning for warning in profile.ml_readiness.readiness_warnings)
