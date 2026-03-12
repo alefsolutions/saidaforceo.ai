@@ -14,6 +14,9 @@ from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
 
 
+EXIT_WORDS = {"exit", "quit", "q"}
+
+
 def main() -> None:
     load_project_env(PROJECT_ROOT)
 
@@ -34,12 +37,34 @@ def main() -> None:
     )
 
     engine = Saida(config=config)
-    result = engine.analyze(dataset, "Why did revenue drop in March by region?")
+    print("SAIDA Ollama playground")
+    print("Type a question, or type 'exit' to quit.")
 
-    print(result.summary)
-    print("Tables:", ", ".join(table.name for table in result.tables))
-    if result.warnings:
-        print("Warnings:", "; ".join(result.warnings))
+    pending_prompt: str | None = None
+    while True:
+        if pending_prompt is None:
+            question = input("> ").strip()
+        else:
+            answer = input("clarification> ").strip()
+            question = f"{pending_prompt}\nClarification: {answer}"
+            pending_prompt = None
+
+        if not question:
+            continue
+        if question.lower() in EXIT_WORDS:
+            break
+
+        result = engine.analyze(dataset, question)
+
+        print(result.summary)
+        if result.tables:
+            print("Tables:", ", ".join(table.name for table in result.tables))
+        if result.warnings:
+            print("Warnings:", "; ".join(result.warnings))
+
+        if result.plan.task_type == "clarification":
+            pending_prompt = question
+            print("Please answer the clarification above, or type 'exit' to quit.")
 
 
 if __name__ == "__main__":
