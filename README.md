@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # SAIDA
 
 SAIDA is a **lightweight Python analytical reasoning library**.
@@ -39,6 +41,35 @@ Prompt handling follows a three-stage design:
 - optional LLM reasoning explains computed outputs without changing them
 
 The final analysis result also includes a standardized JSON-safe response contract so callers can inspect what SAIDA understood, planned, executed, and returned.
+
+---
+
+# Documentation Map
+
+Core project docs:
+
+- [Architecture](ARCHITECTURE.md)
+- [Engine Workflow](ENGINE_WORKFLOW.md)
+- [Schema Spec](SCHEMA_SPEC.md)
+- [API Usage](API_USAGE.md)
+- [File Structure](FILE_STRUCTURE.md)
+- [Coding Guidelines](CODING_GUIDELINES.md)
+- [Context](CONTEXT.md)
+- [ML Pipeline](ML_PIPELINE.md)
+- [Changelog](CHANGELOG.md)
+
+Example context docs:
+
+- [Sales Context](examples/sales_context.md)
+- [Retail Sales Context](examples/contexts/retail_sales_100.md)
+- [Support Tickets Context](examples/contexts/support_tickets_500.md)
+- [Shipping Operations Context](examples/contexts/shipping_operations_1000.md)
+
+Example datasets:
+
+- `examples/datasets/retail_sales_100.csv`
+- `examples/datasets/support_tickets_500.csv`
+- `examples/datasets/shipping_operations_1000.csv`
 
 ---
 

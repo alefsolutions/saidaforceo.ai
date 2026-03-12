@@ -22,3 +22,4 @@ Quick links: [Main README](./README.md) | [Architecture Contract](./ARCHITECTURE
 - Migrated from legacy `saida_core` scaffold to spec-aligned `saida` package structure.
 
 ---
+![SAIDA Banner](assets/github-banner.png)

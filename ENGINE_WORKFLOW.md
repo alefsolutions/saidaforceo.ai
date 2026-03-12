@@ -422,3 +422,4 @@ Warn, but do not necessarily fail, on:
 SAIDA should always follow this order:
 
 **understand the request -> understand data -> plan analysis -> compute deterministically -> explain optionally**
+![SAIDA Banner](assets/github-banner.png)

@@ -1,3 +1,5 @@
+![SAIDA Banner](../../assets/github-banner.png)
+
 # Dataset: Support Tickets
 
 ## Source Summary

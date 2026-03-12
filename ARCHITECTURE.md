@@ -177,3 +177,4 @@ Examples:
 - direct SDK integrations
 
 LLM choice should not change SAIDA's compute contracts or typed result schemas.
+![SAIDA Banner](assets/github-banner.png)

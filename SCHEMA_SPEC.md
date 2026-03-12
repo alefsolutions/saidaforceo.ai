@@ -404,3 +404,4 @@ Schemas should describe:
 - what the system planned
 - what the system computed
 - what the system returned
+![SAIDA Banner](assets/github-banner.png)

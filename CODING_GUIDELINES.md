@@ -491,3 +491,4 @@ If there is a choice between:
 - clarity
 
 choose clarity.
+![SAIDA Banner](assets/github-banner.png)

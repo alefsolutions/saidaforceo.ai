@@ -141,3 +141,4 @@ engine.forecast(...)
 ```
 
 These methods are intentionally not implemented yet in the current repo build.
+![SAIDA Banner](assets/github-banner.png)
