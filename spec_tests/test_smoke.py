@@ -30,6 +30,50 @@ revenue = total invoice value
     assert context.business_rules == ["cancelled orders must be excluded"]
 
 
+def test_context_parser_supports_all_documented_sections() -> None:
+    markdown = """
+# Dataset: Sales
+
+## Table Descriptions
+orders: order-level sales facts
+
+## Field Descriptions
+- posted_at: posting timestamp
+- customer_id: customer identifier
+
+## Metric Definitions
+revenue: total invoice value after discounts
+
+## Business Rules
+- cancelled orders must be excluded
+
+## Caveats
+- refunds arrive one day late
+
+## Trusted Date Fields
+- posted_at
+- settled_at
+
+## Preferred Identifiers
+- customer_id
+
+## Freshness Notes
+- source refreshes daily
+""".strip()
+
+    context = SourceContextParser().parse(markdown)
+
+    assert context.source_summary == "Sales"
+    assert context.table_descriptions["orders"] == "order-level sales facts"
+    assert context.field_descriptions["posted_at"] == "posting timestamp"
+    assert context.metric_definitions["revenue"] == "total invoice value after discounts"
+    assert context.business_rules == ["cancelled orders must be excluded"]
+    assert context.caveats == ["refunds arrive one day late"]
+    assert context.trusted_date_fields == ["posted_at", "settled_at"]
+    assert context.preferred_identifiers == ["customer_id"]
+    assert context.freshness_notes == ["source refreshes daily"]
+
+
 def test_context_parser_extracts_field_sections() -> None:
     markdown = """
 # Summary
