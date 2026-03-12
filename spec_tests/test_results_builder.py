@@ -93,6 +93,9 @@ def test_build_analysis_result_populates_artifacts() -> None:
 
     result = builder.build_analysis_result(
         summary="Test summary.",
+        deterministic_summary="Deterministic summary.",
+        llm_summary="LLM summary.",
+        summary_source="llm",
         metrics=metrics,
         tables=tables,
         warnings=["request warning"],
@@ -103,6 +106,9 @@ def test_build_analysis_result_populates_artifacts() -> None:
     )
 
     assert result.summary == "Test summary."
+    assert result.deterministic_summary == "Deterministic summary."
+    assert result.llm_summary == "LLM summary."
+    assert result.summary_source == "llm"
     assert result.artifacts["request"]["target"] == "revenue"
     assert result.artifacts["metric_lookup"]["revenue_sum"] == 270.0
     assert result.artifacts["table_index"]["dataset_preview"]["rows"] == 2
@@ -118,6 +124,9 @@ def test_build_analysis_result_populates_artifacts() -> None:
     assert result.response["outputs"]["metric_lookup"]["revenue_sum"] == 270.0
     assert result.response["outputs"]["tables"][0]["name"] == "dataset_preview"
     assert result.to_response_dict()["outputs"]["summary"] == "Test summary."
+    assert result.response["outputs"]["deterministic_summary"] == "Deterministic summary."
+    assert result.response["outputs"]["llm_summary"] == "LLM summary."
+    assert result.response["outputs"]["summary_source"] == "llm"
 
 
 def test_build_train_and_forecast_results_keep_payloads() -> None:
@@ -144,6 +153,9 @@ def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
     builder = ResultBuilder()
     result = builder.build_analysis_result(
         summary="Empty result.",
+        deterministic_summary="Empty result.",
+        llm_summary=None,
+        summary_source="deterministic",
         metrics=[],
         tables=[],
         warnings=[],
@@ -158,6 +170,7 @@ def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
     assert result.artifacts["trace_stages"] == []
     assert result.response["outputs"]["metrics"] == []
     assert result.response["outputs"]["tables"] == []
+    assert result.response["outputs"]["summary_source"] == "deterministic"
 
 
 def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
@@ -165,6 +178,9 @@ def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
 
     result = builder.build_analysis_result(
         summary="Duplicate metric names.",
+        deterministic_summary="Duplicate metric names.",
+        llm_summary=None,
+        summary_source="deterministic",
         metrics=[Metric(name="row_count", value=1), Metric(name="row_count", value=2)],
         tables=[],
         warnings=[],
@@ -187,6 +203,9 @@ def test_build_analysis_result_indexes_multiple_tables() -> None:
 
     result = builder.build_analysis_result(
         summary="Multiple tables.",
+        deterministic_summary="Multiple tables.",
+        llm_summary=None,
+        summary_source="deterministic",
         metrics=[],
         tables=tables,
         warnings=["warning one", "warning two"],
@@ -231,6 +250,9 @@ def test_result_builder_handles_many_metric_and_table_shapes(
     builder = ResultBuilder()
     result = builder.build_analysis_result(
         summary=f"Summary {case_id}",
+        deterministic_summary=f"Summary {case_id}",
+        llm_summary=None,
+        summary_source="deterministic",
         metrics=metrics,
         tables=tables,
         warnings=["warning"] if case_id % 2 == 0 else [],

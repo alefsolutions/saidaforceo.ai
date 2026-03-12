@@ -211,6 +211,9 @@ def test_engine_returns_clarification_when_llm_requests_it() -> None:
     result = engine.analyze(dataset, "clarify this request")
 
     assert result.summary == "Please clarify the target metric."
+    assert result.deterministic_summary is None
+    assert result.llm_summary is None
+    assert result.summary_source == "deterministic"
     assert result.plan.task_type == "clarification"
     assert result.tables == []
     assert result.response["status"] == "clarify"
@@ -229,6 +232,9 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     result = engine.analyze(dataset, "refuse this request")
 
     assert result.summary == "We are not able to provide this information at this time."
+    assert result.deterministic_summary is None
+    assert result.llm_summary is None
+    assert result.summary_source == "deterministic"
     assert result.plan.task_type == "unavailable"
     assert result.metrics == []
     assert result.response["status"] == "refuse"
@@ -280,6 +286,8 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
     assert result.response["plan"]["step_count"] >= 1
     assert any(operation["action"] == "aggregate_value" for operation in result.response["operations"])
     assert "revenue_mean" in result.response["outputs"]["metric_lookup"]
+    assert result.deterministic_summary is not None
+    assert result.response["outputs"]["deterministic_summary"] == result.deterministic_summary
 
 
 def test_llm_factory_builds_openai_provider() -> None:
@@ -376,5 +384,8 @@ def test_engine_llm_prompt_and_response_path_across_many_cases(case_id: int, dat
     result = engine.analyze(dataset, question)
 
     assert result.summary.startswith("LLM_RESPONSE_V1:")
+    assert result.deterministic_summary is not None
+    assert result.llm_summary == result.summary
+    assert result.summary_source == "llm"
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
     assert any(event.stage == "llm" for event in result.trace)

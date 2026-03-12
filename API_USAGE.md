@@ -75,6 +75,9 @@ print(result.summary)
 - plan and operations
 - computed metric lookup
 - output table metadata
+- deterministic summary
+- optional LLM summary
+- summary source
 - warnings and trace events
 
 ---

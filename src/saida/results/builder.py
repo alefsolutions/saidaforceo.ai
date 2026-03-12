@@ -25,6 +25,9 @@ class ResultBuilder:
     def build_analysis_result(
         self,
         summary: str,
+        deterministic_summary: str | None,
+        llm_summary: str | None,
+        summary_source: str,
         metrics: list[Metric],
         tables: list[TableArtifact],
         warnings: list[str],
@@ -33,10 +36,36 @@ class ResultBuilder:
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
     ) -> AnalysisResult:
-        artifacts = self._build_analysis_artifacts(metrics, tables, warnings, plan, request, profile, trace)
-        response = self._build_analysis_response(summary, metrics, tables, warnings, plan, request, profile, trace)
+        artifacts = self._build_analysis_artifacts(
+            metrics,
+            tables,
+            warnings,
+            plan,
+            request,
+            profile,
+            trace,
+            deterministic_summary,
+            llm_summary,
+            summary_source,
+        )
+        response = self._build_analysis_response(
+            summary,
+            metrics,
+            tables,
+            warnings,
+            plan,
+            request,
+            profile,
+            trace,
+            deterministic_summary,
+            llm_summary,
+            summary_source,
+        )
         return AnalysisResult(
             summary=summary,
+            deterministic_summary=deterministic_summary,
+            llm_summary=llm_summary,
+            summary_source=summary_source,
             metrics=metrics,
             tables=tables,
             warnings=warnings,
@@ -71,6 +100,9 @@ class ResultBuilder:
         request: AnalysisRequest,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
+        deterministic_summary: str | None,
+        llm_summary: str | None,
+        summary_source: str,
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_index = {
@@ -100,6 +132,9 @@ class ResultBuilder:
             "warning_count": len(warnings),
             "trace_stages": trace_stages,
             "plan_step_ids": [step.step_id for step in plan.steps],
+            "deterministic_summary": deterministic_summary,
+            "llm_summary": llm_summary,
+            "summary_source": summary_source,
         }
 
     def _build_analysis_response(
@@ -112,6 +147,9 @@ class ResultBuilder:
         request: AnalysisRequest,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
+        deterministic_summary: str | None,
+        llm_summary: str | None,
+        summary_source: str,
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_entries = [
@@ -163,6 +201,9 @@ class ResultBuilder:
             "operations": operations,
             "outputs": {
                 "summary": summary,
+                "deterministic_summary": deterministic_summary,
+                "llm_summary": llm_summary,
+                "summary_source": summary_source,
                 "warnings": list(warnings),
                 "warning_count": len(warnings),
                 "metrics": [asdict(metric) for metric in metrics],

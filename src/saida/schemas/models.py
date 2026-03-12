@@ -170,6 +170,9 @@ class ForecastResult:
 @dataclass(slots=True)
 class AnalysisResult:
     summary: str
+    deterministic_summary: str | None
+    llm_summary: str | None
+    summary_source: str
     metrics: list[Metric]
     tables: list[TableArtifact]
     warnings: list[str]

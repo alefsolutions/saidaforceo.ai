@@ -87,7 +87,7 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We need clarification before running this analysis."
             trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
-            return self.results.build_analysis_result(summary, [], [], request_warnings, plan, request, profile, trace)
+            return self.results.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
 
         if request.options.get("analysis_outcome") == "refuse":
             plan = AnalysisPlan(
@@ -98,7 +98,7 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
             trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
-            return self.results.build_analysis_result(summary, [], [], request_warnings, plan, request, profile, trace)
+            return self.results.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
 
         plan = self.planner.build_plan(request, profile, dataset.context)
         self.planner.validate(plan)
@@ -272,11 +272,32 @@ class Saida:
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         deterministic_summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
-        summary, llm_reasoning_warning = self._build_summary(question, request, profile, plan, metrics, tables, warnings, deterministic_summary)
+        summary, llm_summary, summary_source, llm_reasoning_warning = self._build_summary(
+            question,
+            request,
+            profile,
+            plan,
+            metrics,
+            tables,
+            warnings,
+            deterministic_summary,
+        )
         if llm_reasoning_warning is not None:
             warnings = self._merge_warnings(warnings, [llm_reasoning_warning])
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
-        return self.results.build_analysis_result(summary, metrics, tables, warnings, plan, request, profile, trace)
+        return self.results.build_analysis_result(
+            summary,
+            deterministic_summary,
+            llm_summary,
+            summary_source,
+            metrics,
+            tables,
+            warnings,
+            plan,
+            request,
+            profile,
+            trace,
+        )
 
     def train(
         self,
@@ -379,9 +400,9 @@ class Saida:
         tables: list[TableArtifact],
         warnings: list[str],
         deterministic_summary: str,
-    ) -> tuple[str, str | None]:
+    ) -> tuple[str, str | None, str, str | None]:
         if not self.llm_provider or not self.config.llm.use_for_reasoning:
-            return deterministic_summary, None
+            return deterministic_summary, None, "deterministic", None
 
         response_context = ResponseContext(
             question=question,
@@ -402,13 +423,13 @@ class Saida:
         try:
             proposal = self.llm_provider.generate_response(response_context)
         except ReasoningError:
-            return deterministic_summary, "Optional LLM response generation failed; using deterministic summary."
+            return deterministic_summary, None, "deterministic", "Optional LLM response generation failed; using deterministic summary."
 
         if proposal is None:
-            return deterministic_summary, "Optional LLM response generation was unavailable; using deterministic summary."
+            return deterministic_summary, None, "deterministic", "Optional LLM response generation was unavailable; using deterministic summary."
         if proposal.status != "ready" or not proposal.summary:
-            return deterministic_summary, "Optional LLM response was invalid; using deterministic summary."
-        return proposal.summary, None
+            return deterministic_summary, None, "deterministic", "Optional LLM response was invalid; using deterministic summary."
+        return proposal.summary, proposal.summary, "llm", None
 
     def _profile_summary(self, profile: DatasetProfile) -> str:
         return (
