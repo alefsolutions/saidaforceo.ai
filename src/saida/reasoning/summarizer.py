@@ -43,6 +43,13 @@ class ResultSummarizer:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        time_coverage_part = self._describe_time_coverage(tables, request)
+        if time_coverage_part:
+            parts.append(time_coverage_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         representation_part = self._describe_representation_ranking(tables, request)
         if representation_part:
             parts.append(representation_part)
@@ -220,6 +227,31 @@ class ResultSummarizer:
             return f"{prefix}: none."
         values = [str(value) for value in inventory_table.dataframe[column_name].tolist()]
         return f"{prefix}: {', '.join(values)}."
+
+    def _describe_time_coverage(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "time_coverage":
+            return None
+        coverage_table = self._table(tables, "time_coverage")
+        if coverage_table is None:
+            return None
+        mode = request.options.get("time_coverage_mode", "years_present")
+        dataframe = coverage_table.dataframe
+        if mode == "years_present":
+            years = [str(value) for value in dataframe.get("year", pd.Series(dtype="int64")).tolist()]
+            if not years:
+                return "No valid years were detected in the dataset."
+            return f"The data contains records for these years: {', '.join(years)}."
+        if mode == "months_present":
+            months = [str(value) for value in dataframe.get("month", pd.Series(dtype="object")).tolist()]
+            if not months:
+                return "No valid months were detected in the dataset."
+            return f"The data contains records for these months: {', '.join(months)}."
+        if mode == "date_range":
+            if dataframe.empty:
+                return "No valid dates were detected in the dataset."
+            row = dataframe.iloc[0]
+            return f"The data covers {row['earliest_date']} to {row['latest_date']}."
+        return None
 
     def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         if not request.target or not request.group_by or not request.aggregation:

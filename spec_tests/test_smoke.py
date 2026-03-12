@@ -462,6 +462,48 @@ def test_analyze_returns_column_inventory() -> None:
     assert any(table.name == "column_inventory" for table in result.tables)
 
 
+def test_analyze_returns_time_coverage_years() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2024-01-01", "2025-02-01", "2026-03-01", "bad-date"],
+            "revenue": [90.0, 100.0, 120.0, 130.0],
+            "segment": ["Retail", "Retail", "Online", "Online"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "The data shows revenue for which years?")
+
+    assert "The data contains records for these years: 2024, 2025, 2026." in result.summary
+    assert result.response["intent"]["intent_name"] == "time_coverage"
+    assert result.response["intent"]["options"]["time_coverage_mode"] == "years_present"
+    assert any(table.name == "time_coverage" for table in result.tables)
+
+
+def test_analyze_returns_time_coverage_date_range() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-09", "2026-02-01", "2026-04-11"],
+            "revenue": [90.0, 100.0, 120.0],
+            "segment": ["Retail", "Retail", "Online"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What date range does the sales data cover?")
+
+    assert "The data covers 2026-01-09 to 2026-04-11." in result.summary
+    assert any(table.name == "time_coverage" for table in result.tables)
+
+
+def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
+    dataframe = pd.DataFrame({"revenue": [90.0, 100.0], "segment": ["Retail", "Online"]})
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    with pytest.raises(Exception):
+        Saida().analyze(dataset, "Which years are present in the sales data?")
+
+
 def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     database_path = tmp_path / "sales.db"
     connection = sqlite3.connect(database_path)
@@ -500,6 +542,20 @@ def test_profiler_warns_when_no_measures_or_time_columns_detected() -> None:
 
     assert "No measure columns were detected." in profile.warnings
     assert "No datetime columns detected." in profile.warnings
+
+
+def test_profiler_detects_time_column_when_most_values_are_valid_dates() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2024-01-01", "2025-02-01", "2026-03-01", "bad-date"],
+            "revenue": [90.0, 100.0, 120.0, 130.0],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+
+    assert "posted_at" in profile.time_columns
 
 
 _SMOKE_ANALYZE_CASES = [

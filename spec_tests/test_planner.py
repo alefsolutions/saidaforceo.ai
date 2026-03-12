@@ -171,6 +171,21 @@ def test_planner_builds_column_inventory_plan() -> None:
     assert [step.action for step in plan.steps] == ["column_inventory"]
 
 
+def test_planner_builds_time_coverage_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="The data shows revenue for which years?",
+        intent_name="time_coverage",
+        task_type_hint="descriptive",
+        options={"time_coverage_mode": "years_present"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["time_coverage"]
+    assert plan.steps[0].parameters["mode"] == "years_present"
+
+
 def test_planner_rejects_invalid_filter_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -196,6 +211,21 @@ def test_planner_rejects_time_request_without_time_column() -> None:
     )
 
     with pytest.raises(PlanningError, match="Time-based analysis requires a datetime column"):
+        planner.build_plan(request, profile)
+
+
+def test_planner_rejects_time_coverage_without_time_column() -> None:
+    planner = AnalysisPlanner()
+    profile = build_profile()
+    profile.time_columns = []
+    request = AnalysisRequest(
+        question="What years are present in the data?",
+        intent_name="time_coverage",
+        task_type_hint="descriptive",
+        options={"time_coverage_mode": "years_present"},
+    )
+
+    with pytest.raises(PlanningError, match="Time coverage analysis requires a datetime column"):
         planner.build_plan(request, profile)
 
 

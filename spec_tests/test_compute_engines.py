@@ -83,6 +83,81 @@ def test_duckdb_count_rows_by_group_supports_ranking() -> None:
     assert list(table.dataframe["row_count"]) == [1, 1]
 
 
+def test_duckdb_time_coverage_returns_years_present() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2024-01-01", "2025-03-01", "2025-04-01", "2026-01-15"],
+            "revenue": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
+
+    table = engine.time_coverage(dataframe, time_column="posted_at", mode="years_present")
+
+    assert list(table.dataframe["year"]) == [2024, 2025, 2026]
+
+
+def test_duckdb_time_coverage_returns_months_present() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-03-01", "2026-03-15", "2026-04-01"],
+            "revenue": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
+
+    table = engine.time_coverage(dataframe, time_column="posted_at", mode="months_present")
+
+    assert list(table.dataframe["month"]) == ["2026-01", "2026-03", "2026-04"]
+
+
+def test_duckdb_time_coverage_returns_date_range() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-09", "2026-03-01", "2026-04-11"],
+            "revenue": [10.0, 20.0, 30.0],
+        }
+    )
+
+    table = engine.time_coverage(dataframe, time_column="posted_at", mode="date_range")
+
+    row = table.dataframe.iloc[0]
+    assert row["earliest_date"] == "2026-01-09"
+    assert row["latest_date"] == "2026-04-11"
+    assert row["non_null_row_count"] == 3
+
+
+def test_duckdb_time_coverage_ignores_invalid_dates() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["not-a-date", "2026-03-01", None, "2027-01-01"],
+            "revenue": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
+
+    table = engine.time_coverage(dataframe, time_column="posted_at", mode="years_present")
+
+    assert list(table.dataframe["year"]) == [2026, 2027]
+
+
+def test_duckdb_time_coverage_returns_empty_years_for_all_invalid_dates() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"posted_at": ["bad", None], "revenue": [10.0, 20.0]})
+
+    table = engine.time_coverage(dataframe, time_column="posted_at", mode="years_present")
+
+    assert table.dataframe.empty is True
+
+
+def test_duckdb_time_coverage_rejects_unsupported_mode() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="Unsupported time coverage mode"):
+        engine.time_coverage(build_dataframe(), time_column="posted_at", mode="week_numbers")
+
+
 def test_duckdb_ranked_breakdown_respects_limit() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()

@@ -16,6 +16,7 @@ class DatasetProfiler:
 
     CATEGORY_RATIO_THRESHOLD = 0.5
     IDENTIFIER_NAME_HINTS = ("id", "_id", "uuid", "key", "code")
+    DATETIME_PARSE_RATIO_THRESHOLD = 0.6
 
     def profile(self, dataset: Dataset) -> DatasetProfile:
         """Create a deterministic profile for a dataset."""
@@ -129,7 +130,7 @@ class DatasetProfiler:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=UserWarning)
                 parsed = pd.to_datetime(series, errors="coerce")
-            if parsed.notna().sum() > 0 and parsed.notna().mean() > 0.8:
+            if parsed.notna().sum() > 0 and parsed.notna().mean() >= self.DATETIME_PARSE_RATIO_THRESHOLD:
                 return "datetime"
             return "string"
         return "unknown"

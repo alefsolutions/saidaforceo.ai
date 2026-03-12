@@ -79,7 +79,9 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        print(result.summary)
+        llm_summary = getattr(result, "llm_summary", None)
+        summary = getattr(result, "summary", "")
+        print(llm_summary or summary)
         if result.tables:
             print("Tables:", ", ".join(table.name for table in result.tables))
         if result.warnings:

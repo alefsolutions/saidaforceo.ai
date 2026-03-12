@@ -143,6 +143,15 @@ class Saida:
                             step.parameters.get("filters"),
                         )
                     )
+                elif step.action == "time_coverage":
+                    tables.append(
+                        self.duckdb.time_coverage(
+                            dataset.data,
+                            step.parameters["time_column"],
+                            step.parameters.get("mode", "years_present"),
+                            step.parameters.get("filters"),
+                        )
+                    )
                 elif step.action == "aggregate_value":
                     step_metrics = self.duckdb.aggregate_value(
                         dataset.data,

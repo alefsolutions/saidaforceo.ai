@@ -23,6 +23,26 @@ DISTINCT_VALUE_KEYWORDS = {
 ROW_COUNT_KEYWORDS = {"how many rows", "number of rows", "data rows", "row count", "count rows"}
 REPRESENTATION_LOW_KEYWORDS = {"least represented", "fewest rows", "least number of rows", "smallest count"}
 REPRESENTATION_HIGH_KEYWORDS = {"most represented", "most rows", "highest count", "largest count"}
+TIME_COVERAGE_YEAR_KEYWORDS = {
+    "which years",
+    "what years",
+    "years are present",
+    "years does the data cover",
+    "years are in the data",
+}
+TIME_COVERAGE_MONTH_KEYWORDS = {
+    "which months",
+    "what months",
+    "months are present",
+    "months are in the data",
+}
+TIME_COVERAGE_RANGE_KEYWORDS = {
+    "date range",
+    "date span",
+    "data range",
+    "earliest and latest date",
+    "from when to when",
+}
 AGGREGATION_KEYWORDS = {
     "mean": {"average", "mean", "avg"},
     "max": {"highest", "maximum", "max", "top", "largest", "best"},
@@ -73,16 +93,21 @@ class RequestNormalizer:
         group_by = self._extract_group_by(question, profile)
         filters = self._extract_filters(question, profile, context)
         options = self._build_request_options(dataset.name, intent_name)
+        if intent_name == "time_coverage":
+            options["time_coverage_mode"] = self._time_coverage_mode(question)
+            target = None
+            aggregation = None
+            group_by = None
 
         if intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
 
-        if target is None and profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+        if target is None and profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+        if target is None and not profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
@@ -142,15 +167,20 @@ class RequestNormalizer:
         horizon = proposal.horizon if proposal.horizon and proposal.horizon > 0 else rule_horizon
 
         options = self._build_request_options(dataset.name, rule_intent_name)
+        if rule_intent_name == "time_coverage":
+            options["time_coverage_mode"] = self._time_coverage_mode(question)
+            target = None
+            aggregation = None
+            group_by = None
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
 
-        if target is None and profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+        if target is None and profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+        if target is None and not profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
@@ -349,6 +379,8 @@ class RequestNormalizer:
             return "dimension_inventory"
         if any(keyword in lowered for keyword in {"time columns", "date columns", "datetime columns"}):
             return "time_column_inventory"
+        if self._looks_like_time_coverage_request(question):
+            return "time_coverage"
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
             return "row_count"
         if self._looks_like_distinct_values_request(question):
@@ -373,6 +405,19 @@ class RequestNormalizer:
     def _looks_like_distinct_values_request(self, question: str) -> bool:
         lowered = question.lower()
         return any(keyword in lowered for keyword in DISTINCT_VALUE_KEYWORDS)
+
+    def _looks_like_time_coverage_request(self, question: str) -> bool:
+        lowered = question.lower()
+        all_keywords = TIME_COVERAGE_YEAR_KEYWORDS | TIME_COVERAGE_MONTH_KEYWORDS | TIME_COVERAGE_RANGE_KEYWORDS
+        return any(keyword in lowered for keyword in all_keywords)
+
+    def _time_coverage_mode(self, question: str) -> str:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in TIME_COVERAGE_YEAR_KEYWORDS):
+            return "years_present"
+        if any(keyword in lowered for keyword in TIME_COVERAGE_MONTH_KEYWORDS):
+            return "months_present"
+        return "date_range"
 
     def _should_list_distinct_values(
         self,

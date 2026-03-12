@@ -259,6 +259,50 @@ def test_normalizer_detects_column_inventory_intent() -> None:
     assert request.target is None
 
 
+def test_normalizer_detects_time_coverage_years_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "The data shows revenue for which years?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "time_coverage"
+    assert request.target is None
+    assert request.options["time_coverage_mode"] == "years_present"
+
+
+def test_normalizer_detects_time_coverage_months_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "What months are present in the sales data?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_coverage"
+    assert request.options["time_coverage_mode"] == "months_present"
+
+
+def test_normalizer_detects_time_coverage_date_range_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "What date range does the sales data cover?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_coverage"
+    assert request.options["time_coverage_mode"] == "date_range"
+
+
 _NORMALIZER_QUESTION_CASES = [
     (
         f"Show revenue by region for West in march case {index}",

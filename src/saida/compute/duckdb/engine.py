@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import duckdb
 import pandas as pd
+import warnings
 
 from saida.exceptions import ComputeError
 from saida.schemas import Metric, TableArtifact
@@ -85,6 +86,49 @@ class DuckDBComputeEngine:
             name="distinct_values",
             description=f"Distinct values for {target}.",
             dataframe=values,
+        )
+
+    def time_coverage(
+        self,
+        dataframe: pd.DataFrame,
+        time_column: str,
+        mode: str = "years_present",
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Inspect the temporal coverage of a datetime column."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [time_column])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column])
+
+        if mode == "years_present":
+            years = sorted(int(value) for value in prepared[time_column].dt.year.dropna().unique().tolist())
+            coverage = pd.DataFrame({"year": years})
+        elif mode == "months_present":
+            months = sorted(prepared[time_column].dt.to_period("M").astype(str).dropna().unique().tolist())
+            coverage = pd.DataFrame({"month": months})
+        elif mode == "date_range":
+            if prepared.empty:
+                coverage = pd.DataFrame(columns=["earliest_date", "latest_date", "non_null_row_count"])
+            else:
+                earliest_date = prepared[time_column].min().date().isoformat()
+                latest_date = prepared[time_column].max().date().isoformat()
+                coverage = pd.DataFrame(
+                    {
+                        "earliest_date": [earliest_date],
+                        "latest_date": [latest_date],
+                        "non_null_row_count": [int(len(prepared))],
+                    }
+                )
+        else:
+            raise ComputeError(f"Unsupported time coverage mode: {mode}")
+
+        return TableArtifact(
+            name="time_coverage",
+            description=f"Temporal coverage for {time_column} using mode {mode}.",
+            dataframe=coverage,
         )
 
     def count_rows_by_group(

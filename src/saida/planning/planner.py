@@ -27,6 +27,7 @@ class AnalysisPlanner:
             "measure_inventory",
             "dimension_inventory",
             "time_column_inventory",
+            "time_coverage",
         }:
             request.target = profile.measure_columns[0]
             warnings.append("No target was provided; using the first measure column.")
@@ -40,6 +41,22 @@ class AnalysisPlanner:
                         action=request.intent_name,
                         parameters={},
                         description="Return dataset inventory information for the requested metadata view.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "time_coverage":
+                steps.append(
+                    PlanStep(
+                        step_id="time_coverage",
+                        tool_family="duckdb",
+                        action="time_coverage",
+                        parameters={
+                            "time_column": profile.time_columns[0],
+                            "filters": request.filters,
+                            "mode": request.options.get("time_coverage_mode", "years_present"),
+                        },
+                        description="Inspect time coverage in the dataset without treating the datetime column as a metric.",
                     )
                 )
                 rationale = self._build_rationale(task_type, request, context)
@@ -384,6 +401,8 @@ class AnalysisPlanner:
             raise PlanningError("Distinct value listing requires a dimension target.")
         if request.intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
             raise PlanningError("Representation ranking requires a dimension target.")
+        if request.intent_name == "time_coverage" and not profile.time_columns:
+            raise PlanningError("Time coverage analysis requires a datetime column.")
 
         if request.group_by:
             invalid_groups = [column for column in request.group_by if column not in profile_columns]
@@ -429,4 +448,6 @@ class AnalysisPlanner:
             rationale += " A distinct value listing was requested."
         if request.intent_name:
             rationale += f" Intent: {request.intent_name}."
+        if request.intent_name == "time_coverage":
+            rationale += f" Time coverage mode: {request.options.get('time_coverage_mode', 'years_present')}."
         return rationale
