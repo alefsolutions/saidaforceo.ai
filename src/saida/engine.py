@@ -99,6 +99,29 @@ class Saida:
                             step.parameters.get("limit", 5),
                         )
                     )
+                elif step.action == "grouped_period_comparison":
+                    tables.append(
+                        self.duckdb.grouped_period_comparison(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"],
+                            step.parameters["time_column"],
+                            step.parameters["time_reference"],
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "top_movers":
+                    tables.append(
+                        self.duckdb.top_movers(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"],
+                            step.parameters["time_column"],
+                            step.parameters["time_reference"],
+                            step.parameters.get("filters"),
+                            step.parameters.get("limit", 5),
+                        )
+                    )
                 elif step.action == "contribution_breakdown":
                     tables.append(
                         self.duckdb.contribution_breakdown(

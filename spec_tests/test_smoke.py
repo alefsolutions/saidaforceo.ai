@@ -198,9 +198,13 @@ def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
 
     ranked_table = next(table for table in result.tables if table.name == "ranked_breakdown")
     contribution_table = next(table for table in result.tables if table.name == "contribution_breakdown")
+    grouped_period_table = next(table for table in result.tables if table.name == "grouped_period_comparison")
+    mover_table = next(table for table in result.tables if table.name == "top_movers")
 
     assert "rank" in ranked_table.dataframe.columns
     assert "delta" in contribution_table.dataframe.columns
+    assert "pct_change" in grouped_period_table.dataframe.columns
+    assert "abs_delta" in mover_table.dataframe.columns
     assert not contribution_table.dataframe.empty
 
 

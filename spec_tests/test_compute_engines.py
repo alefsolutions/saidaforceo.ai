@@ -21,6 +21,11 @@ def test_duckdb_period_and_contribution_breakdown() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()
 
+    trend_table = engine.time_trend(
+        dataframe,
+        target="revenue",
+        time_column="posted_at",
+    )
     period_table = engine.period_comparison(
         dataframe,
         target="revenue",
@@ -35,6 +40,7 @@ def test_duckdb_period_and_contribution_breakdown() -> None:
         time_reference={"type": "month_name", "value": "march", "month": "3"},
     )
 
+    assert "period_delta" in trend_table.dataframe.columns
     assert list(period_table.dataframe["period"]) == ["2026-02", "2026-03"]
     assert "delta" in contribution_table.dataframe.columns
 
@@ -47,6 +53,31 @@ def test_duckdb_ranked_breakdown_respects_limit() -> None:
 
     assert len(ranked.dataframe) == 1
     assert ranked.dataframe.iloc[0]["rank"] == 1
+
+
+def test_duckdb_grouped_period_comparison_and_top_movers() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = build_dataframe()
+
+    grouped_comparison = engine.grouped_period_comparison(
+        dataframe,
+        target="revenue",
+        group_by=["region"],
+        time_column="posted_at",
+        time_reference={"type": "month_name", "value": "march", "month": "3"},
+    )
+    movers = engine.top_movers(
+        dataframe,
+        target="revenue",
+        group_by=["region"],
+        time_column="posted_at",
+        time_reference={"type": "month_name", "value": "march", "month": "3"},
+        limit=2,
+    )
+
+    assert "pct_change" in grouped_comparison.dataframe.columns
+    assert "abs_delta" in movers.dataframe.columns
+    assert len(movers.dataframe) <= 2
 
 
 def test_stats_engine_returns_correlation_and_anomalies() -> None:

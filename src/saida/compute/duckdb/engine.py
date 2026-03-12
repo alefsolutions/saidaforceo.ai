@@ -51,11 +51,18 @@ class DuckDBComputeEngine:
         prepared = prepared.dropna(subset=[time_column])
         prepared["period_month"] = prepared[time_column].dt.to_period("M").astype(str)
         query = """
+            with monthly_totals as (
+                select
+                    period_month,
+                    sum(target_value) as target_total
+                from prepared
+                group by period_month
+            )
             select
                 period_month,
-                sum(target_value) as target_total
-            from prepared
-            group by period_month
+                target_total,
+                target_total - lag(target_total) over(order by period_month) as period_delta
+            from monthly_totals
             order by period_month
         """
         try:
@@ -66,6 +73,89 @@ class DuckDBComputeEngine:
         except Exception as exc:  # pragma: no cover
             raise ComputeError(f"Failed to compute time trend for target '{target}'.") from exc
         return TableArtifact(name="time_trend", description=f"Monthly trend for {target}.", dataframe=trend)
+
+    def grouped_period_comparison(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_by: list[str],
+        time_column: str,
+        time_reference: dict[str, str],
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Compare grouped totals between adjacent periods."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column, target])
+        prepared["period_month"] = prepared[time_column].dt.to_period("M")
+
+        periods = self._resolve_adjacent_periods(prepared, time_reference)
+        if periods is None:
+            return TableArtifact(
+                name="grouped_period_comparison",
+                description="No comparable grouped periods could be derived from the request.",
+                dataframe=pd.DataFrame(columns=[*group_by, "previous_total", "current_total", "delta", "pct_change"]),
+            )
+
+        current_period, previous_period = periods
+        current_slice = prepared.loc[prepared["period_month"] == current_period]
+        previous_slice = prepared.loc[prepared["period_month"] == previous_period]
+
+        current_grouped = current_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="current_total")
+        previous_grouped = previous_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="previous_total")
+
+        comparison = current_grouped.merge(previous_grouped, on=group_by, how="outer").fillna(0.0)
+        comparison["delta"] = comparison["current_total"] - comparison["previous_total"]
+        comparison["pct_change"] = comparison.apply(
+            lambda row: float(row["delta"] / row["previous_total"]) if row["previous_total"] else 0.0,
+            axis=1,
+        )
+        comparison = comparison.sort_values("delta")
+
+        return TableArtifact(
+            name="grouped_period_comparison",
+            description=f"Grouped period comparison for {target}.",
+            dataframe=comparison.reset_index(drop=True),
+        )
+
+    def top_movers(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_by: list[str],
+        time_column: str,
+        time_reference: dict[str, str],
+        filters: dict[str, str] | None = None,
+        limit: int = 5,
+    ) -> TableArtifact:
+        """Return the largest grouped movers between adjacent periods."""
+        comparison = self.grouped_period_comparison(
+            dataframe=dataframe,
+            target=target,
+            group_by=group_by,
+            time_column=time_column,
+            time_reference=time_reference,
+            filters=filters,
+        ).dataframe.copy()
+
+        if comparison.empty:
+            return TableArtifact(
+                name="top_movers",
+                description=f"No movers were available for {target}.",
+                dataframe=comparison,
+            )
+
+        comparison["abs_delta"] = comparison["delta"].abs()
+        comparison = comparison.sort_values("abs_delta", ascending=False).head(limit).copy()
+        comparison["rank"] = range(1, len(comparison) + 1)
+
+        ordered_columns = ["rank", *group_by, "previous_total", "current_total", "delta", "pct_change", "abs_delta"]
+        comparison = comparison.loc[:, [column for column in ordered_columns if column in comparison.columns]]
+        return TableArtifact(
+            name="top_movers",
+            description=f"Top {limit} movers for {target}.",
+            dataframe=comparison.reset_index(drop=True),
+        )
 
     def group_breakdown(
         self,
@@ -198,18 +288,15 @@ class DuckDBComputeEngine:
                 dataframe=empty,
             )
 
-        requested_month = int(time_reference["month"])
-        matching_periods = prepared.loc[prepared["period_month"].dt.month == requested_month, "period_month"].sort_values()
-        if matching_periods.empty:
+        periods = self._resolve_adjacent_periods(prepared, time_reference)
+        if periods is None:
             empty = pd.DataFrame(columns=["period", "target_total"])
             return TableArtifact(
                 name="period_comparison",
                 description="No rows matched the requested period.",
                 dataframe=empty,
             )
-
-        current_period = matching_periods.iloc[-1]
-        previous_period = current_period - 1
+        current_period, previous_period = periods
 
         current_total = prepared.loc[prepared["period_month"] == current_period, target].sum()
         previous_total = prepared.loc[prepared["period_month"] == previous_period, target].sum()
@@ -227,6 +314,23 @@ class DuckDBComputeEngine:
             description=f"Comparison for {target} across adjacent periods.",
             dataframe=comparison,
         )
+
+    def _resolve_adjacent_periods(
+        self,
+        dataframe: pd.DataFrame,
+        time_reference: dict[str, str],
+    ) -> tuple[pd.Period, pd.Period] | None:
+        if time_reference.get("type") != "month_name":
+            return None
+
+        requested_month = int(time_reference["month"])
+        matching_periods = dataframe.loc[dataframe["period_month"].dt.month == requested_month, "period_month"].sort_values()
+        if matching_periods.empty:
+            return None
+
+        current_period = matching_periods.iloc[-1]
+        previous_period = current_period - 1
+        return current_period, previous_period
 
     def _apply_filters(self, dataframe: pd.DataFrame, filters: dict[str, str] | None) -> pd.DataFrame:
         if not filters:

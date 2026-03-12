@@ -42,6 +42,12 @@ class ResultSummarizer:
             if "delta" in strongest_drop:
                 parts.append(f"Largest contribution delta was {float(strongest_drop['delta']):.2f}.")
 
+        mover_table = next((table for table in tables if table.name == "top_movers"), None)
+        if mover_table is not None and not mover_table.dataframe.empty:
+            first_mover = mover_table.dataframe.iloc[0].to_dict()
+            if "delta" in first_mover:
+                parts.append(f"Top mover delta was {float(first_mover['delta']):.2f}.")
+
         anomaly_table = next((table for table in tables if table.name == "anomaly_summary"), None)
         if anomaly_table is not None:
             parts.append(f"Anomaly candidates found: {len(anomaly_table.dataframe)}.")

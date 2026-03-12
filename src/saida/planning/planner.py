@@ -63,6 +63,22 @@ class AnalysisPlanner:
                         description="Compare the requested period against the previous comparable period.",
                     )
                 )
+                if request.group_by:
+                    steps.append(
+                        PlanStep(
+                            step_id="grouped_period_comparison",
+                            tool_family="duckdb",
+                            action="grouped_period_comparison",
+                            parameters={
+                                "target": request.target,
+                                "group_by": request.group_by,
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "filters": request.filters,
+                            },
+                            description="Compare grouped totals between adjacent periods.",
+                        )
+                    )
             if request.group_by:
                 steps.append(
                     PlanStep(
@@ -87,6 +103,23 @@ class AnalysisPlanner:
                         description="Rank the largest grouped contributors.",
                     )
                 )
+                if request.time_reference and profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="top_movers",
+                            tool_family="duckdb",
+                            action="top_movers",
+                            parameters={
+                                "target": request.target,
+                                "group_by": request.group_by,
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "filters": request.filters,
+                                "limit": 5,
+                            },
+                            description="Identify the largest grouped movers between adjacent periods.",
+                        )
+                    )
             elif task_type == "diagnostic" and request.target and profile.dimension_columns:
                 steps.append(
                     PlanStep(
@@ -115,6 +148,23 @@ class AnalysisPlanner:
                         description="Rank the leading grouped contributors for the diagnostic workflow.",
                     )
                 )
+                if request.time_reference and profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="top_dimension_movers",
+                            tool_family="duckdb",
+                            action="top_movers",
+                            parameters={
+                                "target": request.target,
+                                "group_by": [profile.dimension_columns[0]],
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "filters": request.filters,
+                                "limit": 5,
+                            },
+                            description="Identify the largest movers for the leading dimension candidate.",
+                        )
+                    )
             if task_type == "diagnostic" and request.target and profile.dimension_columns:
                 steps.append(
                     PlanStep(
