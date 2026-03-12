@@ -33,7 +33,35 @@ LLMs must not:
 - fabricate metrics
 - override computed facts
 
-### 2. Lightweight by default
+### 2. Boring code is better than academic code
+Choose human-readable code over clever, compressed, or overly abstract code every time.
+
+SAIDA should prefer implementation styles that are easy to read, explain, debug, and extend.
+
+This follows the Zen of Python:
+
+- explicit is better than implicit
+- simple is better than complex
+- flat is better than nested
+- sparse is better than dense
+- readability counts
+- in the face of ambiguity, refuse the temptation to guess
+- if the implementation is hard to explain, it is a bad idea
+
+Prefer:
+- obvious control flow
+- descriptive names
+- straightforward branching
+- small helper functions
+- plain data structures when they are enough
+
+Avoid:
+- clever compression
+- academic abstractions without a practical payoff
+- dense one-liners that hide intent
+- indirection that makes debugging harder
+
+### 3. Lightweight by default
 Prefer small, focused modules.
 
 Avoid:
@@ -48,7 +76,7 @@ Prefer:
 - explicit inputs and outputs
 - composition over inheritance
 
-### 3. Library-first design
+### 4. Library-first design
 The public interface must work cleanly from Python scripts.
 
 Good:
@@ -63,7 +91,7 @@ Avoid designs that assume:
 - background workers
 - API-first workflows
 
-### 4. Data analysis first, reasoning second
+### 5. Data analysis first, reasoning second
 Core analytical workflows must function without LLMs.
 
 Reasoning should be optional and additive.
@@ -71,7 +99,7 @@ Reasoning should be optional and additive.
 Prompt understanding should be separated from reasoning.
 Use transformer-based NLP or transformer-assisted request normalization to produce structured intent before planning.
 
-### 5. Strong typing and explicit schemas
+### 6. Strong typing and explicit schemas
 Use dataclasses or Pydantic consistently for shared domain objects.
 
 Every major boundary should have typed objects for:
@@ -81,7 +109,7 @@ Every major boundary should have typed objects for:
 - result
 - model metadata
 
-### 6. Testability
+### 7. Testability
 Every deterministic compute function should be easy to unit test.
 
 Prefer:
@@ -125,6 +153,7 @@ Functions should:
 - have explicit parameters
 - return typed objects where practical
 - avoid mutating external state unless necessary
+- be easy for another engineer to understand quickly
 
 Bad:
 ```python
@@ -148,6 +177,7 @@ Good examples:
 - `ResultBuilder`
 
 Avoid giant god classes.
+Avoid clever object models when a simple function or plain class is clearer.
 
 ---
 
@@ -443,6 +473,7 @@ Important modules should also include:
 
 When generating code for SAIDA:
 
+- choose boring, readable code over clever code
 - keep files small
 - keep responsibilities narrow
 - prefer explicit schemas

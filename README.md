@@ -10,6 +10,7 @@ Core philosophy:
 - **Structured data first**
 - **Modular architecture**
 - **Library-first (not SaaS, not API)**
+- **Readable, boring code over clever code**
 
 SAIDA helps developers:
 
@@ -28,6 +29,7 @@ SAIDA is designed to be:
 - extensible
 - transparent
 - deterministic
+- readable
 
 The library focuses on **structured analytics first**, with optional semantic reasoning layers.
 
