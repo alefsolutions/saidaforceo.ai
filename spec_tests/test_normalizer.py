@@ -221,6 +221,38 @@ def test_normalizer_detects_distinct_value_listing_for_dimension_prompt() -> Non
     assert request.options["distinct_values"] is True
 
 
+def test_normalizer_detects_distinct_value_listing_for_category_phrasing() -> None:
+    normalizer = RequestNormalizer()
+    profile = build_profile()
+    profile.dimension_columns = ["region", "segment", "priority"]
+    profile.columns.append(
+        ColumnProfile(
+            name="priority",
+            inferred_type="category",
+            nullable=False,
+            null_ratio=0.0,
+            unique_count=4,
+            distinct_ratio=1.0,
+            sample_values=["Low", "Medium"],
+            is_dimension_candidate=True,
+        )
+    )
+    dataset = build_dataset()
+    dataset.data["priority"] = ["Low", "Medium", "High", "Urgent"]
+
+    request, warnings = normalizer.normalize(
+        "What are the different priority categories in the data?",
+        dataset,
+        profile,
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "distinct_values"
+    assert request.target == "priority"
+    assert request.options["distinct_values"] is True
+
+
 def test_normalizer_detects_row_count_intent() -> None:
     normalizer = RequestNormalizer()
 

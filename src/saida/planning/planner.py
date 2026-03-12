@@ -102,6 +102,24 @@ class AnalysisPlanner:
                 )
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if (
+                task_type == "descriptive"
+                and request.target in set(profile.dimension_columns)
+                and not request.aggregation
+                and not request.group_by
+            ):
+                steps.append(
+                    PlanStep(
+                        step_id="distinct_values",
+                        tool_family="duckdb",
+                        action="distinct_values",
+                        parameters={"target": request.target, "filters": request.filters},
+                        description="List the distinct values for the requested dimension.",
+                    )
+                )
+                warnings.append("Dimension prompt was routed to a distinct value listing.")
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.target and request.aggregation:
                 steps.append(
                     PlanStep(

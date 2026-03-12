@@ -130,6 +130,20 @@ def test_planner_builds_distinct_values_plan_for_dimension_listing() -> None:
     assert [step.action for step in plan.steps] == ["distinct_values"]
 
 
+def test_planner_routes_dimension_only_prompt_to_distinct_values() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show region",
+        task_type_hint="descriptive",
+        target="region",
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["distinct_values"]
+    assert any("distinct value listing" in warning for warning in plan.warnings)
+
+
 def test_planner_builds_row_count_plan() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

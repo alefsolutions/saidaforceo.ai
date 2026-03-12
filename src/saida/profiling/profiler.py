@@ -188,6 +188,9 @@ class DatasetProfiler:
         high_uniqueness = distinct_ratio is not None and distinct_ratio >= 0.98
         supported_type = inferred_type in {"string", "category", "integer"}
 
+        if inferred_type == "integer" and not has_identifier_name:
+            return False
+
         return supported_type and (high_uniqueness or has_identifier_name)
 
     def _is_measure_candidate(

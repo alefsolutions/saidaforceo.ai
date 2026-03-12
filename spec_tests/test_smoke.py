@@ -308,6 +308,22 @@ def test_profiler_detects_identifiers_dimensions_and_measures() -> None:
     assert "posted_at" in profile.time_columns
 
 
+def test_profiler_does_not_treat_unique_integer_measures_as_identifiers() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100, 101, 102, 103],
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+
+    assert "revenue" in profile.measure_columns
+    assert "revenue" not in profile.identifier_columns
+    assert "revenue" not in profile.dimension_columns
+
+
 def test_profiler_marks_low_cardinality_strings_as_category() -> None:
     dataframe = pd.DataFrame(
         {
@@ -409,6 +425,24 @@ def test_analyze_lists_distinct_dimension_values_for_list_prompt() -> None:
     assert "Available segment values: Online, Retail, Wholesale." in result.summary
     assert any(table.name == "distinct_values" for table in result.tables)
     assert result.plan.steps[0].action == "distinct_values"
+
+
+def test_analyze_lists_distinct_dimension_values_for_category_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.0, 3.1, 8.4],
+            "priority": ["Low", "Medium", "High", "Urgent"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What are the different priority categories in the data?")
+
+    assert "Available priority values: High, Low, Medium, Urgent." in result.summary
+    assert result.response["intent"]["intent_name"] == "distinct_values"
+    assert any(table.name == "distinct_values" for table in result.tables)
+    assert all(table.name != "time_trend" for table in result.tables)
 
 
 def test_analyze_counts_rows_for_row_count_prompt() -> None:

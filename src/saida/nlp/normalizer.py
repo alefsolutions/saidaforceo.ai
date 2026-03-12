@@ -20,6 +20,14 @@ DISTINCT_VALUE_KEYWORDS = {
     "available values",
     "give me all",
 }
+DISTINCT_VALUE_CATEGORY_KEYWORDS = {
+    "different",
+    "categories",
+    "category",
+    "values",
+    "types",
+    "kinds",
+}
 ROW_COUNT_KEYWORDS = {"how many rows", "number of rows", "data rows", "row count", "count rows"}
 REPRESENTATION_LOW_KEYWORDS = {"least represented", "fewest rows", "least number of rows", "smallest count"}
 REPRESENTATION_HIGH_KEYWORDS = {"most represented", "most rows", "highest count", "largest count"}
@@ -383,7 +391,7 @@ class RequestNormalizer:
             return "time_coverage"
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
             return "row_count"
-        if self._looks_like_distinct_values_request(question):
+        if self._looks_like_distinct_values_request(question) or self._looks_like_dimension_category_request(question, profile):
             return "distinct_values"
         if self._looks_like_representation_request(question, profile):
             return "representation_ranking"
@@ -405,6 +413,12 @@ class RequestNormalizer:
     def _looks_like_distinct_values_request(self, question: str) -> bool:
         lowered = question.lower()
         return any(keyword in lowered for keyword in DISTINCT_VALUE_KEYWORDS)
+
+    def _looks_like_dimension_category_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        if not any(keyword in lowered for keyword in DISTINCT_VALUE_CATEGORY_KEYWORDS):
+            return False
+        return any(column.lower() in lowered for column in profile.dimension_columns)
 
     def _looks_like_time_coverage_request(self, question: str) -> bool:
         lowered = question.lower()
@@ -431,7 +445,7 @@ class RequestNormalizer:
             return False
         if self._extract_aggregation(question):
             return False
-        return self._looks_like_distinct_values_request(question)
+        return self._looks_like_distinct_values_request(question) or self._looks_like_dimension_category_request(question, profile)
 
     def _build_request_options(self, dataset_name: str, intent_name: str | None) -> dict[str, object]:
         return {
