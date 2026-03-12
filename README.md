@@ -13,12 +13,13 @@ Core philosophy:
 
 SAIDA helps developers:
 
+- Convert natural-language questions into structured analysis requests using transformer-based NLP
 - Run deterministic analytics
 - Perform statistical analysis
 - Train predictive models
 - Generate forecasts
 - Attach semantic context to datasets
-- Optionally use LLM reasoning
+- Optionally use LLM reasoning for interpretation
 
 SAIDA is designed to be:
 
@@ -29,6 +30,12 @@ SAIDA is designed to be:
 - deterministic
 
 The library focuses on **structured analytics first**, with optional semantic reasoning layers.
+
+Prompt handling follows a three-stage design:
+
+- transformer-based NLP extracts structured intent from the user question
+- deterministic compute produces facts, metrics, and model outputs
+- optional LLM reasoning explains computed outputs without changing them
 
 ---
 
@@ -62,6 +69,15 @@ print(result.summary)
 
 # Key Capabilities
 
+### Prompt Understanding
+
+- transformer-based modern NLP for request understanding
+- intent classification
+- metric and target extraction
+- date and period extraction
+- filter and grouping hint extraction
+- structured `AnalysisRequest` generation
+
 ### Data Analytics
 
 - descriptive analytics
@@ -81,6 +97,14 @@ print(result.summary)
 ### Semantic Context
 
 Attach Markdown documentation to data sources to provide business meaning.
+
+### Reasoning
+
+SAIDA keeps reasoning model-agnostic.
+
+- Any compatible LLM provider may be used
+- LLMs interpret computed results, not generate facts
+- Core analytics workflows remain usable without an LLM
 
 ---
 

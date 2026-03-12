@@ -35,4 +35,4 @@ Context provides:
 - field explanations
 - caveats
 
-This improves reasoning quality.
+This improves NLP request normalization, planning quality, and optional reasoning quality.

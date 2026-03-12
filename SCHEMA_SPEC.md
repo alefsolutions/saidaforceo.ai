@@ -144,11 +144,14 @@ class AnalysisRequest:
     target: str | None
     horizon: int | None
     filters: dict[str, Any] | None
+    group_by: list[str] | None
+    time_reference: dict[str, Any] | None
     options: dict[str, Any]
 ```
 
 ### Notes
 This should capture user intent at the library boundary.
+It is expected to be produced by the NLP/request-normalization layer before planning.
 
 ---
 
@@ -239,6 +242,7 @@ class ExecutionTraceEvent:
 ### Example stages
 - adapter
 - context
+- nlp
 - profiling
 - planning
 - compute
@@ -336,6 +340,8 @@ This must be rich enough for:
 - console output
 - programmatic inspection
 - later API exposure
+
+The `summary` field may be generated deterministically or via an optional LLM reasoning layer, but it must remain grounded in computed outputs.
 
 ---
 

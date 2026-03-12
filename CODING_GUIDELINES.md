@@ -19,6 +19,9 @@ SAIDA is a Python library, not a SaaS app, not an API platform, and not a heavy 
 ### 1. Deterministic-first
 Any numerical fact, metric, statistical output, model score, or forecast must come from deterministic code.
 
+Prompt understanding should use modern transformer-based NLP, optionally combined with deterministic rules.
+That stage is allowed to extract structured request data, but it is not the source of analytical truth.
+
 LLMs may:
 - interpret
 - summarize
@@ -65,6 +68,9 @@ Core analytical workflows must function without LLMs.
 
 Reasoning should be optional and additive.
 
+Prompt understanding should be separated from reasoning.
+Use transformer-based NLP or transformer-assisted request normalization to produce structured intent before planning.
+
 ### 5. Strong typing and explicit schemas
 Use dataclasses or Pydantic consistently for shared domain objects.
 
@@ -92,6 +98,7 @@ Prefer:
 - `schemas/` stores shared typed data contracts
 - `adapters/` ingests and normalizes sources
 - `context/` parses semantic markdown context
+- `nlp/` converts natural-language questions into structured request objects
 - `profiling/` inspects datasets
 - `planning/` generates deterministic or LLM-assisted plans
 - `compute/` executes analytics, stats, and ML
@@ -205,6 +212,7 @@ Keep dependencies minimal.
 - pandas
 - numpy
 - scipy
+- sentence-transformers, transformers, or equivalent modern NLP tooling
 - statsmodels
 - scikit-learn
 - xgboost
@@ -282,6 +290,8 @@ Planning must prefer deterministic rule-based planning first.
 
 Optional LLM planning may be layered on top.
 
+Planning should consume a normalized `AnalysisRequest`, not raw prompt text scattered across the engine.
+
 Plans should always be represented as structured objects.
 
 Each plan must define:
@@ -334,15 +344,36 @@ Support:
 Reasoning is optional.
 
 Reasoning may:
-- translate prompt into analysis intent
 - explain computed outputs
 - summarize results
 - suggest next questions
+- help resolve ambiguity when explicitly enabled
 
 Reasoning must not:
 - invent facts
 - override computed metrics
 - bypass validations
+
+Reasoning integrations should remain LLM-provider agnostic.
+
+---
+
+## NLP Rules
+
+NLP is responsible for structured signal extraction at the request boundary.
+
+The default expectation for SAIDA is modern transformer-based NLP rather than legacy rule-only parsing.
+
+NLP may:
+- classify user intent
+- extract metrics, targets, and dimensions
+- extract dates, periods, filters, and grouping hints
+- normalize raw prompt text into an `AnalysisRequest`
+
+NLP must not:
+- compute metrics
+- explain results as if they were computed facts
+- bypass plan validation
 
 ---
 

@@ -3,20 +3,14 @@
 SAIDA follows a layered architecture:
 
 User Prompt
-↓
-Adapters (data ingestion)
-↓
-Context (semantic markdown)
-↓
-Profiling (dataset intelligence)
-↓
-Planning (analysis plan generation)
-↓
-Compute (analytics / statistics / ML)
-↓
-Reasoning (optional LLM interpretation)
-↓
-Results (structured outputs)
+-> NLP Understanding
+-> Adapters (data ingestion)
+-> Context (semantic markdown)
+-> Profiling (dataset intelligence)
+-> Planning (analysis plan generation)
+-> Compute (analytics / statistics / ML)
+-> Reasoning (optional LLM interpretation)
+-> Results (structured outputs)
 
 ---
 
@@ -26,9 +20,30 @@ Facts come from computation.
 
 Insights may come from reasoning.
 
+Prompt understanding should be converted into structured request data before planning begins.
+
 ---
 
 ## Core Layers
+
+### NLP Understanding Layer
+
+Responsible for converting a natural-language question into a structured request.
+
+Typical responsibilities:
+
+- intent classification
+- metric and target extraction
+- date and period extraction
+- filter and grouping hint extraction
+- ambiguity detection
+
+Outputs a typed `AnalysisRequest` used by the planning layer.
+
+This layer should use modern transformer-based NLP for request understanding.
+It should not compute analytical facts.
+
+---
 
 ### Adapters
 
@@ -78,6 +93,8 @@ Produces:
 
 Determines what analysis to perform.
 
+The planner should operate on a normalized structured request, not raw prompt text alone.
+
 Example plans:
 
 - descriptive analysis
@@ -91,11 +108,11 @@ Example plans:
 
 Three deterministic compute modules:
 
-DuckDB — analytical SQL engine
+DuckDB - analytical SQL engine
 
-Stats — statistical routines
+Stats - statistical routines
 
-ML — machine learning and forecasting
+ML - machine learning and forecasting
 
 ---
 
@@ -105,9 +122,10 @@ Optional LLM layer.
 
 Responsibilities:
 
-- interpret prompts
+- interpret computed outputs
 - explain analysis
 - summarize insights
+- resolve ambiguity when explicitly enabled
 
 ---
 
@@ -121,3 +139,18 @@ Contains:
 - metrics
 - summary text
 - execution traces
+
+---
+
+## LLM Positioning
+
+The reasoning layer should remain LLM-provider agnostic.
+
+Examples:
+
+- OpenAI-compatible chat models
+- local models
+- LangChain-integrated models
+- direct SDK integrations
+
+LLM choice should not change SAIDA's compute contracts or typed result schemas.

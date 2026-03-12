@@ -8,7 +8,7 @@ SAIDA is a lightweight Python library with the following guiding principle:
 
 **Data analysis first. Reasoning second.**
 
-Reasoning may assist with planning and explanation, but deterministic computation is the source of truth.
+Reasoning may assist with ambiguity handling and explanation, but deterministic computation is the source of truth.
 
 ---
 
@@ -16,24 +16,15 @@ Reasoning may assist with planning and explanation, but deterministic computatio
 
 ```text
 Input Data
-↓
-Adapter Load
-↓
-Optional Markdown Context Attach
-↓
-Dataset Profiling
-↓
-Analysis Request Normalization
-↓
-Plan Generation
-↓
-Plan Validation
-↓
-Deterministic Compute Execution
-↓
-Optional Reasoning / Explanation
-↓
-Result Packaging
+-> Adapter Load
+-> Optional Markdown Context Attach
+-> Dataset Profiling
+-> NLP Request Normalization
+-> Plan Generation
+-> Plan Validation
+-> Deterministic Compute Execution
+-> Optional LLM Reasoning / Explanation
+-> Result Packaging
 ```
 
 ---
@@ -111,19 +102,22 @@ This stage should happen before planning.
 
 ---
 
-## 5. Request Normalization Stage
+## 5. NLP Request Normalization Stage
 
 SAIDA converts raw user input into a normalized `AnalysisRequest`.
 
-This may include:
+This stage should use modern transformer-based NLP, optionally combined with deterministic rules, to extract:
 - question
 - task hint
 - target
 - forecast horizon
 - filters
+- grouping hints
 - execution options
 
 This normalized request is the planning input.
+
+The NLP layer should extract structured signal, not analytical conclusions.
 
 ---
 
@@ -147,7 +141,7 @@ Example:
 
 ### Planning design
 Prefer deterministic rules first.
-Optional LLM-assisted planning can be layered on top.
+Optional LLM-assisted planning can be layered on top, but it should remain optional.
 
 ---
 
@@ -207,6 +201,7 @@ If reasoning is enabled, SAIDA may:
 - explain analytical findings
 - generate next-step suggestions
 - translate results into more natural language
+- help resolve ambiguity when the NLP layer has low confidence
 
 Reasoning uses:
 - computed outputs
@@ -215,6 +210,8 @@ Reasoning uses:
 - context metadata
 
 Reasoning must not override computed facts.
+
+The reasoning layer should be LLM-agnostic so it can support direct SDK integrations, LangChain-wrapped models, or local models.
 
 ---
 
@@ -251,11 +248,12 @@ Flow:
 1. load dataset
 2. attach context
 3. profile
-4. plan
-5. validate
-6. run duckdb/stats steps
-7. optionally summarize
-8. return `AnalysisResult`
+4. normalize request with transformer-based NLP/rules
+5. plan
+6. validate
+7. run duckdb/stats steps
+8. optionally summarize
+9. return `AnalysisResult`
 
 ---
 
@@ -308,10 +306,11 @@ Flow:
 1. load dataset
 2. attach context
 3. profile
-4. validate time-series suitability
-5. train or load forecast model
-6. generate forecast
-7. package `ForecastAnalysisResult`
+4. normalize request if a natural-language forecast prompt was provided
+5. validate time-series suitability
+6. train or load forecast model
+7. generate forecast
+8. package `ForecastAnalysisResult`
 
 ---
 
@@ -355,6 +354,7 @@ Example events:
 - dataset loaded
 - context parsed
 - profile generated
+- request normalized
 - plan validated
 - duckdb query executed
 - model trained
@@ -377,6 +377,7 @@ Warn, but do not necessarily fail, on:
 - weak signal
 - short time windows
 - context file gaps
+- ambiguous prompt interpretation
 
 ---
 
@@ -384,4 +385,4 @@ Warn, but do not necessarily fail, on:
 
 SAIDA should always follow this order:
 
-**understand data -> plan analysis -> compute deterministically -> explain optionally**
+**understand the request -> understand data -> plan analysis -> compute deterministically -> explain optionally**
