@@ -17,6 +17,9 @@ from saida.config import LlmConfig, SaidaConfig
 def main() -> None:
     load_project_env(PROJECT_ROOT)
 
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set.")
+
     dataset = CSVAdapter(
         PROJECT_ROOT / "examples" / "sales.csv",
         context_path=PROJECT_ROOT / "examples" / "sales_context.md",
@@ -25,9 +28,8 @@ def main() -> None:
     config = SaidaConfig(
         llm=LlmConfig(
             enabled=True,
-            provider="ollama",
-            model=os.getenv("OLLAMA_MODEL", "llama3.1"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+            provider="openai",
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             use_for_prompting=True,
             use_for_reasoning=True,
         )

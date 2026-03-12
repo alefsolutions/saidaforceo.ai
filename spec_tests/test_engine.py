@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 
 from saida import Saida
-from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
+from saida.config import LlmConfig
+from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal, build_llm_provider
 from saida.exceptions import ValidationError
 from saida.schemas import Dataset
 
@@ -206,6 +207,20 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     assert result.summary == "We are not able to provide this information at this time."
     assert result.plan.task_type == "unavailable"
     assert result.metrics == []
+
+
+def test_llm_factory_builds_openai_provider() -> None:
+    provider = build_llm_provider(
+        LlmConfig(
+            enabled=True,
+            provider="openai",
+            model="gpt-4.1-mini",
+            options={"api_key": "test-key"},
+        )
+    )
+
+    assert provider is not None
+    assert provider.provider_name == "openai"
 
 
 _ENGINE_PROFILE_CASES = [
