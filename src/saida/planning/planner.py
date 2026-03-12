@@ -202,6 +202,15 @@ class AnalysisPlanner:
             if request.target:
                 steps.append(
                     PlanStep(
+                        step_id="distribution_summary",
+                        tool_family="stats",
+                        action="distribution_summary",
+                        parameters={"target": request.target},
+                        description="Summarize the target distribution.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
                         step_id="target_correlation",
                         tool_family="stats",
                         action="target_correlation",
@@ -221,6 +230,28 @@ class AnalysisPlanner:
                         description="Flag simple anomaly candidates for the target.",
                     )
                 )
+                if profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="time_series_diagnostics",
+                            tool_family="stats",
+                            action="time_series_diagnostics",
+                            parameters={"target": request.target, "time_column": profile.time_columns[0]},
+                            description="Compute simple time-series diagnostics for the target.",
+                        )
+                    )
+                candidate_dimensions = request.group_by or profile.dimension_columns
+                comparison_dimension = [column for column in candidate_dimensions if column != request.target][:1]
+                if comparison_dimension:
+                    steps.append(
+                        PlanStep(
+                            step_id="group_mean_comparison",
+                            tool_family="stats",
+                            action="group_mean_comparison",
+                            parameters={"target": request.target, "group_column": comparison_dimension[0]},
+                            description="Compare the target mean across the first available grouping dimension.",
+                        )
+                    )
 
         if task_type == "forecasting":
             if not profile.time_columns:

@@ -148,6 +148,10 @@ class Saida:
                     tables.append(self.stats.missingness_summary(dataset.data))
                 elif step.action == "numeric_summary":
                     tables.append(self.stats.numeric_summary(dataset.data))
+                elif step.action == "distribution_summary":
+                    distribution_table = self.stats.distribution_summary(dataset.data, step.parameters["target"])
+                    if distribution_table is not None:
+                        tables.append(distribution_table)
                 elif step.action == "target_correlation":
                     correlation_table = self.stats.correlation_matrix(dataset.data, step.parameters.get("target"))
                     if correlation_table is not None:
@@ -160,6 +164,22 @@ class Saida:
                     )
                     if anomaly_table is not None:
                         tables.append(anomaly_table)
+                elif step.action == "time_series_diagnostics":
+                    diagnostics_table = self.stats.time_series_diagnostics(
+                        dataset.data,
+                        step.parameters["target"],
+                        step.parameters["time_column"],
+                    )
+                    if diagnostics_table is not None:
+                        tables.append(diagnostics_table)
+                elif step.action == "group_mean_comparison":
+                    comparison_table = self.stats.group_mean_comparison(
+                        dataset.data,
+                        step.parameters["target"],
+                        step.parameters["group_column"],
+                    )
+                    if comparison_table is not None:
+                        tables.append(comparison_table)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         summary = self.summarizer.summarize(plan, metrics, tables, warnings)

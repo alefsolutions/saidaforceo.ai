@@ -226,8 +226,14 @@ def test_analyze_returns_anomaly_summary_for_outlier_series() -> None:
 
     result = Saida().analyze(dataset, "Show revenue trend")
 
+    distribution_table = next(table for table in result.tables if table.name == "distribution_summary")
     anomaly_table = next(table for table in result.tables if table.name == "anomaly_summary")
+    diagnostics_table = next(table for table in result.tables if table.name == "time_series_diagnostics")
+
+    assert "skewness" in distribution_table.dataframe.columns
     assert len(anomaly_table.dataframe) >= 1
+    assert "lag1_autocorrelation" in diagnostics_table.dataframe.columns
+    assert all(table.name != "group_mean_comparison" for table in result.tables)
 
 
 def test_train_forecast_and_predict_raise_not_implemented() -> None:

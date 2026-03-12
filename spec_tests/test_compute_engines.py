@@ -84,10 +84,19 @@ def test_stats_engine_returns_correlation_and_anomalies() -> None:
     engine = StatsComputeEngine()
     dataframe = build_dataframe()
 
+    distribution_table = engine.distribution_summary(dataframe, target="revenue")
     correlation_table = engine.correlation_matrix(dataframe, target="revenue")
     anomaly_table = engine.anomaly_summary(dataframe, target="revenue", time_column="posted_at")
+    comparison_table = engine.group_mean_comparison(dataframe, target="revenue", group_column="region")
+    diagnostics_table = engine.time_series_diagnostics(dataframe, target="revenue", time_column="posted_at")
 
+    assert distribution_table is not None
+    assert "skewness" in distribution_table.dataframe.columns
     assert correlation_table is not None
     assert "correlation" in correlation_table.dataframe.columns
     assert anomaly_table is not None
     assert len(anomaly_table.dataframe) >= 1
+    assert comparison_table is not None
+    assert "p_value" in comparison_table.dataframe.columns
+    assert diagnostics_table is not None
+    assert "lag1_autocorrelation" in diagnostics_table.dataframe.columns
