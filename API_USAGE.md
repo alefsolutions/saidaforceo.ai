@@ -35,6 +35,27 @@ print(profile.time_columns)
 
 ---
 
+# Capabilities Example
+
+```python
+engine.capabilities()
+```
+
+Current output in this repo build:
+
+```python
+{
+    "analyze": True,
+    "profile": True,
+    "load_context": True,
+    "train": False,
+    "predict": False,
+    "forecast": False,
+}
+```
+
+---
+
 # Local CLI Example
 
 ```bash

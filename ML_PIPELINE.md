@@ -9,6 +9,7 @@ Current repo status:
 - `train(...)`, `predict(...)`, and `forecast(...)` exist in the public API
 - the current build raises clear not-implemented errors for these methods
 - deterministic analytics is the active implementation focus right now
+- `engine.capabilities()` reports these ML methods as unavailable
 
 ---
 

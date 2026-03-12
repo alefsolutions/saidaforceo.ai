@@ -44,6 +44,17 @@ class Saida:
         """Profile a dataset deterministically."""
         return self.profiler.profile(dataset)
 
+    def capabilities(self) -> dict[str, bool]:
+        """Return the currently available public SAIDA capabilities."""
+        return {
+            "analyze": True,
+            "profile": True,
+            "load_context": True,
+            "train": False,
+            "predict": False,
+            "forecast": False,
+        }
+
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
         """Run an end-to-end deterministic analysis workflow."""
         self._validate_dataset(dataset)

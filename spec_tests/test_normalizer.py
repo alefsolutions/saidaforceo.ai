@@ -122,3 +122,97 @@ def test_normalizer_rejects_missing_target_when_no_measure_columns_exist() -> No
 
     with pytest.raises(ValidationError, match="No target metric could be resolved"):
         normalizer.normalize("Show something interesting", build_dataset(), profile, None)
+
+
+def test_normalizer_falls_back_to_first_measure_with_warning() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("Show data by region", build_dataset(), build_profile(), None)
+
+    assert request.target == "revenue"
+    assert any("No explicit metric matched the prompt" in warning for warning in warnings)
+
+
+def test_normalizer_extracts_relative_time_reference() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue for last month", build_dataset(), build_profile(), None)
+
+    assert request.time_reference == {"type": "relative_period", "value": "last_month"}
+
+
+def test_normalizer_extracts_horizon_from_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Forecast revenue for 3 months", build_dataset(), build_profile(), None)
+
+    assert request.horizon == 3
+    assert request.task_type_hint == "forecasting"
+
+
+def test_normalizer_uses_context_metric_aliases() -> None:
+    normalizer = RequestNormalizer()
+    context = SourceContext(raw_markdown="", metric_definitions={"profit": "net profit"})
+
+    request, _ = normalizer.normalize("Show profit by region", build_dataset(), build_profile(), context)
+
+    assert request.target == "profit"
+
+
+def test_normalizer_extracts_equals_filters() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue where region=West", build_dataset(), build_profile(), None)
+
+    assert request.filters == {"region": "West"}
+
+
+def test_normalizer_deduplicates_group_by_matches() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue by region across region", build_dataset(), build_profile(), None)
+
+    assert request.group_by == ["region"]
+
+
+def test_normalizer_sets_options_payload() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue", build_dataset(), build_profile(), None)
+
+    assert request.options["dataset"] == "sales"
+    assert request.options["nlp_backend"] == "rules"
+
+
+_NORMALIZER_QUESTION_CASES = [
+    (
+        f"Show revenue by region for West in march case {index}",
+        "descriptive",
+        "revenue",
+        ["region"],
+    )
+    for index in range(1, 45)
+] + [
+    (
+        f"Why did revenue drop in March by region case {index}",
+        "diagnostic",
+        "revenue",
+        ["region"],
+    )
+    for index in range(45, 89)
+]
+
+
+@pytest.mark.parametrize(("question", "task_type", "expected_target", "expected_group_by"), _NORMALIZER_QUESTION_CASES)
+def test_normalizer_handles_many_supported_question_shapes(
+    question: str,
+    task_type: str,
+    expected_target: str,
+    expected_group_by: list[str],
+) -> None:
+    normalizer = RequestNormalizer()
+    request, _ = normalizer.normalize(question, build_dataset(), build_profile(), None)
+
+    assert request.task_type_hint == task_type
+    assert request.target == expected_target
+    assert request.group_by == expected_group_by

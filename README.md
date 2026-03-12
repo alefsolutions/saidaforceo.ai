@@ -125,6 +125,13 @@ Not implemented yet in the current repo build.
 - `predict(...)`
 - `forecast(...)`
 
+You can inspect the current public surface directly:
+
+```python
+engine.capabilities()
+# {'analyze': True, 'profile': True, 'load_context': True, 'train': False, 'predict': False, 'forecast': False}
+```
+
 ### Semantic Context
 
 Attach Markdown documentation to data sources to provide business meaning. This significantly improves responses especially if optional LLM is used for reasoning.

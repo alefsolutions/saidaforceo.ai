@@ -130,3 +130,103 @@ def test_build_train_and_forecast_results_keep_payloads() -> None:
     assert train_result.trace[0].stage == "ml"
     assert forecast_result.forecast.horizon == 3
     assert forecast_result.forecast.forecast_values == [1.0, 2.0, 3.0]
+
+
+def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
+    builder = ResultBuilder()
+    result = builder.build_analysis_result(
+        summary="Empty result.",
+        metrics=[],
+        tables=[],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Empty."),
+        request=AnalysisRequest(question="Show revenue"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.artifacts["metric_lookup"] == {}
+    assert result.artifacts["table_index"] == {}
+    assert result.artifacts["trace_stages"] == []
+
+
+def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Duplicate metric names.",
+        metrics=[Metric(name="row_count", value=1), Metric(name="row_count", value=2)],
+        tables=[],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Duplicate metrics."),
+        request=AnalysisRequest(question="Show revenue"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.artifacts["metric_lookup"]["row_count"] == 2
+
+
+def test_build_analysis_result_indexes_multiple_tables() -> None:
+    builder = ResultBuilder()
+    tables = [
+        TableArtifact(name="first", description="First table", dataframe=pd.DataFrame({"value": [1]})),
+        TableArtifact(name="second", description="Second table", dataframe=pd.DataFrame({"value": [1, 2]})),
+    ]
+
+    result = builder.build_analysis_result(
+        summary="Multiple tables.",
+        metrics=[],
+        tables=tables,
+        warnings=["warning one", "warning two"],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Multiple tables."),
+        request=AnalysisRequest(question="Show revenue"),
+        profile=build_profile(),
+        trace=[ExecutionTraceEvent(stage="results", message="packaged")],
+    )
+
+    assert result.artifacts["table_index"]["first"]["rows"] == 1
+    assert result.artifacts["table_index"]["second"]["rows"] == 2
+    assert result.artifacts["warning_count"] == 2
+
+
+import pytest
+
+
+_RESULT_BUILDER_CASES = [
+    (
+        index,
+        [Metric(name="row_count", value=index), Metric(name="revenue_sum", value=float(index * 10))],
+        [
+            TableArtifact(
+                name=f"table_{index}",
+                description="Synthetic table.",
+                dataframe=pd.DataFrame({"value": list(range(index % 3 + 1))}),
+            )
+        ],
+    )
+    for index in range(1, 96)
+]
+
+
+@pytest.mark.parametrize(("case_id", "metrics", "tables"), _RESULT_BUILDER_CASES)
+def test_result_builder_handles_many_metric_and_table_shapes(
+    case_id: int,
+    metrics: list[Metric],
+    tables: list[TableArtifact],
+) -> None:
+    builder = ResultBuilder()
+    result = builder.build_analysis_result(
+        summary=f"Summary {case_id}",
+        metrics=metrics,
+        tables=tables,
+        warnings=["warning"] if case_id % 2 == 0 else [],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Synthetic."),
+        request=AnalysisRequest(question=f"Question {case_id}", target="revenue"),
+        profile=build_profile(),
+        trace=[ExecutionTraceEvent(stage="results", message="packaged")],
+    )
+
+    assert result.summary == f"Summary {case_id}"
+    assert result.artifacts["metric_lookup"]["row_count"] == case_id
+    assert list(result.artifacts["table_index"].keys()) == [f"table_{case_id}"]

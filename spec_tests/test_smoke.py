@@ -276,6 +276,17 @@ def test_train_forecast_and_predict_raise_not_implemented() -> None:
         engine.forecast(dataset, target="sales", horizon=2)
 
 
+def test_engine_capabilities_mark_ml_as_deferred() -> None:
+    capabilities = Saida().capabilities()
+
+    assert capabilities["analyze"] is True
+    assert capabilities["profile"] is True
+    assert capabilities["load_context"] is True
+    assert capabilities["train"] is False
+    assert capabilities["predict"] is False
+    assert capabilities["forecast"] is False
+
+
 def test_profiler_detects_identifiers_dimensions_and_measures() -> None:
     dataframe = pd.DataFrame(
         {
@@ -327,3 +338,84 @@ def test_profiler_warns_on_duplicates_and_limited_readiness() -> None:
     assert profile.ml_readiness is not None
     assert profile.ml_readiness.forecasting_ready is False
     assert any("No time column" in warning for warning in profile.ml_readiness.readiness_warnings)
+
+
+def test_analyze_supports_json_adapter_input(tmp_path: Path) -> None:
+    json_path = tmp_path / "sales.json"
+    json_path.write_text(
+        '[{"posted_at": "2026-02-01", "revenue": 120, "region": "West"}, {"posted_at": "2026-03-01", "revenue": 80, "region": "East"}]',
+        encoding="utf-8",
+    )
+
+    dataset = JSONAdapter(json_path).load()
+    result = Saida().analyze(dataset, "Why did revenue drop in March?")
+
+    assert result.plan.task_type == "diagnostic"
+    assert any(table.name == "period_comparison" for table in result.tables)
+
+
+def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
+    database_path = tmp_path / "sales.db"
+    connection = sqlite3.connect(database_path)
+    connection.execute("create table sales (posted_at text, revenue integer, region text)")
+    connection.execute("insert into sales values ('2026-02-01', 120, 'West')")
+    connection.execute("insert into sales values ('2026-03-01', 80, 'East')")
+    connection.commit()
+    connection.close()
+
+    dataset = SQLAdapter(database_path, "select posted_at, revenue, region from sales").load()
+    result = Saida().analyze(dataset, "Why did revenue drop in March?")
+
+    assert result.summary
+    assert any(metric.name == "revenue_sum" for metric in result.metrics)
+
+
+def test_analyze_rejects_quarter_prompt_until_supported() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
+            "revenue": [100, 110, 120],
+            "region": ["West", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    with pytest.raises(Exception):
+        Saida().analyze(dataset, "Show revenue in Q1")
+
+
+def test_profiler_warns_when_no_measures_or_time_columns_detected() -> None:
+    dataframe = pd.DataFrame({"region": ["West", "East"], "segment": ["SMB", "Enterprise"]})
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    profile = DatasetProfiler().profile(dataset)
+
+    assert "No measure columns were detected." in profile.warnings
+    assert "No datetime columns detected." in profile.warnings
+
+
+_SMOKE_ANALYZE_CASES = [
+    (
+        index,
+        pd.DataFrame(
+            {
+                "posted_at": ["2026-02-01", "2026-03-01", "2026-04-01"],
+                "revenue": [float(index + 20), float(index + 10), float(index + 5)],
+                "region": ["West", "East", "West"],
+            }
+        ),
+        "Why did revenue drop in March?",
+    )
+    for index in range(1, 84)
+]
+
+
+@pytest.mark.parametrize(("case_id", "dataframe", "question"), _SMOKE_ANALYZE_CASES)
+def test_smoke_many_end_to_end_analysis_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
+    dataset = Dataset(name=f"sales_{case_id}", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, question)
+
+    assert result.plan.task_type == "diagnostic"
+    assert any(table.name == "period_comparison" for table in result.tables)
+    assert result.artifacts["profile"]["dataset_name"] == f"sales_{case_id}"

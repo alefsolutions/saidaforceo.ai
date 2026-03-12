@@ -123,3 +123,142 @@ def test_stats_engine_rejects_missing_target_columns() -> None:
 
     with pytest.raises(ComputeError, match="Target column 'profit' does not exist"):
         engine.distribution_summary(build_dataframe(), target="profit")
+
+
+def test_duckdb_dataset_summary_returns_core_metrics() -> None:
+    engine = DuckDBComputeEngine()
+
+    metrics, tables = engine.dataset_summary(build_dataframe(), target="revenue")
+    metric_lookup = {metric.name: metric.value for metric in metrics}
+
+    assert metric_lookup["row_count"] == 5
+    assert metric_lookup["column_count"] == 4
+    assert metric_lookup["revenue_sum"] == 600.0
+    assert tables[0].name == "dataset_preview"
+
+
+def test_duckdb_group_breakdown_orders_by_target_total() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.group_breakdown(build_dataframe(), target="revenue", group_by=["region"])
+
+    assert list(table.dataframe["region"]) == ["West", "East"]
+
+
+def test_duckdb_contribution_breakdown_without_time_returns_share_of_total() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.contribution_breakdown(build_dataframe(), target="revenue", group_by=["region"])
+
+    assert "share_of_total" in table.dataframe.columns
+    assert pytest.approx(float(table.dataframe["share_of_total"].sum()), 0.0001) == 1.0
+
+
+def test_duckdb_period_comparison_returns_empty_for_unmatched_month() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.period_comparison(
+        build_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        time_reference={"type": "month_name", "value": "january", "month": "1"},
+    )
+
+    assert table.dataframe.empty is True
+
+
+def test_duckdb_time_trend_respects_filters() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.time_trend(build_dataframe(), target="revenue", time_column="posted_at", filters={"region": "West"})
+
+    assert list(table.dataframe["target_total"]) == [120.0, 60.0, 300.0]
+
+
+def test_duckdb_top_movers_returns_empty_when_month_missing() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.top_movers(
+        build_dataframe(),
+        target="revenue",
+        group_by=["region"],
+        time_column="posted_at",
+        time_reference={"type": "month_name", "value": "january", "month": "1"},
+    )
+
+    assert table.dataframe.empty is True
+
+
+def test_stats_numeric_summary_handles_non_numeric_frame() -> None:
+    engine = StatsComputeEngine()
+    dataframe = pd.DataFrame({"region": ["West", "East"]})
+
+    table = engine.numeric_summary(dataframe)
+
+    assert list(table.dataframe.columns) == ["column", "count", "mean", "std", "min", "max"]
+    assert table.dataframe.empty is True
+
+
+def test_stats_correlation_returns_none_for_single_numeric_column() -> None:
+    engine = StatsComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [100.0, 120.0, 90.0], "region": ["West", "East", "West"]})
+
+    table = engine.correlation_matrix(dataframe, target="revenue")
+
+    assert table is None
+
+
+def test_stats_anomaly_summary_returns_none_for_constant_series() -> None:
+    engine = StatsComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [100.0, 100.0, 100.0], "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"]})
+
+    table = engine.anomaly_summary(dataframe, target="revenue", time_column="posted_at")
+
+    assert table is None
+
+
+def test_stats_time_series_diagnostics_returns_none_for_short_history() -> None:
+    engine = StatsComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [100.0, 90.0], "posted_at": ["2026-01-01", "2026-02-01"]})
+
+    table = engine.time_series_diagnostics(dataframe, target="revenue", time_column="posted_at")
+
+    assert table is None
+
+
+def test_stats_group_mean_comparison_rejects_same_group_and_target() -> None:
+    engine = StatsComputeEngine()
+
+    with pytest.raises(ComputeError, match="different from the target"):
+        engine.group_mean_comparison(build_dataframe(), target="revenue", group_column="revenue")
+
+
+_DUCKDB_SUMMARY_CASES = [
+    (
+        index,
+        pd.DataFrame(
+            {
+                "posted_at": ["2026-02-01", "2026-03-01", "2026-04-01"],
+                "revenue": [float(index), float(index + 10), float(index + 20)],
+                "region": ["West", "East", "West"],
+            }
+        ),
+    )
+    for index in range(1, 84)
+]
+
+
+@pytest.mark.parametrize(("case_id", "dataframe"), _DUCKDB_SUMMARY_CASES)
+def test_duckdb_and_stats_handle_many_small_cases(case_id: int, dataframe: pd.DataFrame) -> None:
+    duckdb_engine = DuckDBComputeEngine()
+    stats_engine = StatsComputeEngine()
+
+    metrics, tables = duckdb_engine.dataset_summary(dataframe, target="revenue")
+    trend = duckdb_engine.time_trend(dataframe, target="revenue", time_column="posted_at")
+    distribution = stats_engine.distribution_summary(dataframe, target="revenue")
+
+    assert any(metric.name == "revenue_sum" for metric in metrics)
+    assert tables[0].name == "dataset_preview"
+    assert len(trend.dataframe) == 3
+    assert distribution is not None
+    assert distribution.dataframe.iloc[0]["count"] == 3
