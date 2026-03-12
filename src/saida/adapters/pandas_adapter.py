@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pandas as pd
 
+from saida.adapters._helpers import build_dataset
 from saida.context import SourceContextParser
+from saida.exceptions import AdapterError
 from saida.schemas import Dataset
 
 
@@ -12,6 +14,8 @@ class PandasAdapter:
     """Wrap an existing pandas DataFrame in the SAIDA dataset schema."""
 
     def __init__(self, dataframe: pd.DataFrame, *, name: str = "dataframe", context_markdown: str | None = None) -> None:
+        if not isinstance(dataframe, pd.DataFrame):
+            raise AdapterError("PandasAdapter requires a pandas DataFrame.")
         self.dataframe = dataframe.copy()
         self.name = name
         self.context_markdown = context_markdown
@@ -22,10 +26,10 @@ class PandasAdapter:
         if self.context_markdown:
             context = SourceContextParser().parse(self.context_markdown)
 
-        return Dataset(
+        return build_dataset(
+            self.dataframe,
             name=self.name,
             source_type="pandas",
-            data=self.dataframe,
             metadata={"rows": len(self.dataframe), "columns": list(self.dataframe.columns)},
             context=context,
         )

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from saida.context import SourceContextParser
+from saida.adapters._helpers import build_dataset, load_context
 from saida.exceptions import AdapterError
 from saida.schemas import Dataset
 
@@ -33,21 +33,21 @@ class SQLAdapter:
         if not self.database_path.exists():
             raise AdapterError(f"SQLite database not found: {self.database_path}")
 
+        connection: sqlite3.Connection | None = None
         try:
             connection = sqlite3.connect(self.database_path)
             dataframe = pd.read_sql_query(self.query, connection)
-            connection.close()
         except Exception as exc:  # pragma: no cover
             raise AdapterError(f"Failed to load SQL query results from: {self.database_path}") from exc
+        finally:
+            if connection is not None:
+                connection.close()
 
-        context = None
-        if self.context_path:
-            context = SourceContextParser().parse_file(self.context_path)
-
-        return Dataset(
+        context = load_context(self.context_path)
+        return build_dataset(
+            dataframe,
             name=self.name,
             source_type="sql",
-            data=dataframe,
             metadata={"database_path": str(self.database_path), "query": self.query},
             context=context,
         )

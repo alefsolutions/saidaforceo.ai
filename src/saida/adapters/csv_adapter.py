@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from saida.context import SourceContextParser
+from saida.adapters._helpers import build_dataset, load_context
 from saida.exceptions import AdapterError
 from saida.schemas import Dataset
 
@@ -29,14 +29,11 @@ class CSVAdapter:
         except Exception as exc:  # pragma: no cover
             raise AdapterError(f"Failed to load CSV file: {self.path}") from exc
 
-        context = None
-        if self.context_path:
-            context = SourceContextParser().parse_file(self.context_path)
-
-        return Dataset(
+        context = load_context(self.context_path)
+        return build_dataset(
+            dataframe,
             name=self.name,
             source_type="csv",
-            data=dataframe,
             metadata={"path": str(self.path)},
             context=context,
         )
