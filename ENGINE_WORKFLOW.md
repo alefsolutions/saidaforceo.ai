@@ -36,7 +36,7 @@ The user provides one or more of the following:
 - a dataset source
 - an optional semantic markdown context file
 - a question or analysis request
-- optional ML target and forecasting options
+- optional ML target and forecasting options for future versions
 
 Example:
 
@@ -55,7 +55,7 @@ The adapter is responsible for turning an external source into a normalized `Dat
 
 Examples:
 - CSV adapter reads a file
-- SQL adapter executes a query or registers a table handle
+- SQL adapter executes a SQLite query
 - pandas adapter wraps a DataFrame
 
 Outputs:
@@ -96,7 +96,8 @@ Typical profiling tasks:
 - inspect nulls
 - detect measures and dimensions
 - identify time fields
-- identify ML suitability hints
+- identify duplicate rows
+- identify ML suitability hints for later phases
 
 This stage should happen before planning.
 
@@ -106,7 +107,7 @@ This stage should happen before planning.
 
 SAIDA converts raw user input into a normalized `AnalysisRequest`.
 
-This stage should use modern transformer-based NLP, optionally combined with deterministic rules, to extract:
+In the current repo build, this stage uses deterministic rules first and exposes an optional transformer classification hook. It extracts:
 - question
 - task hint
 - target
@@ -142,6 +143,7 @@ Example:
 ### Planning design
 Prefer deterministic rules first.
 Optional LLM-assisted planning can be layered on top, but it should remain optional.
+Current non-ML planning supports month-based time references. Quarter and broader relative-period execution are not implemented yet.
 
 ---
 
@@ -154,6 +156,7 @@ Examples:
 - classification requires a target
 - insufficient rows should trigger warnings
 - missing values may limit model training
+- invalid filters and missing target columns should fail clearly
 
 Invalid plans should fail early with clear errors.
 
@@ -167,17 +170,17 @@ The engine executes plan steps in order.
 Used for:
 - filtering
 - aggregations
-- joins
-- window functions
+- grouped period comparisons
+- top movers
 - time bucketing
-- feature table preparation
+- contribution analysis
 
 ### Stats compute
 Used for:
 - descriptive statistics
 - correlation
 - anomaly detection
-- hypothesis testing
+- simple group mean comparison
 - time-series diagnostics
 
 ### ML compute
@@ -191,6 +194,7 @@ Important:
 - ML training should be explicit
 - training should not run on ingestion by default
 - reuse saved models where possible
+- the current repo build keeps ML methods as placeholders and does not execute these stages yet
 
 ---
 
@@ -212,6 +216,7 @@ Reasoning uses:
 Reasoning must not override computed facts.
 
 The reasoning layer should be LLM-agnostic so it can support direct SDK integrations, LangChain-wrapped models, or local models.
+The current repo build ships a deterministic summarizer and does not yet integrate a live LLM provider.
 
 ---
 
@@ -226,7 +231,7 @@ Typical output:
 - warnings
 - execution trace
 - analysis plan
-- optional model artifacts
+- analysis artifacts
 
 This output should be useful for:
 - direct printing
@@ -266,6 +271,10 @@ Example:
 engine.train(dataset=dataset, target="revenue", problem_type="regression")
 ```
 
+Current status:
+- this API exists
+- the current repo build raises a clear not-implemented error for ML methods
+
 Flow:
 1. load dataset
 2. attach context
@@ -291,6 +300,9 @@ Flow:
 3. run prediction
 4. package `PredictionResult`
 
+Current status:
+- reserved for later implementation
+
 ---
 
 ## D. Forecast Workflow
@@ -311,6 +323,9 @@ Flow:
 6. train or load forecast model
 7. generate forecast
 8. package `ForecastAnalysisResult`
+
+Current status:
+- reserved for later implementation
 
 ---
 
@@ -357,8 +372,8 @@ Example events:
 - request normalized
 - plan validated
 - duckdb query executed
-- model trained
 - reasoning summary generated
+- analysis result packaged
 
 This improves debuggability and transparency.
 
@@ -371,6 +386,8 @@ Fail early on:
 - invalid plans
 - missing targets for ML
 - insufficient history for forecasting
+- invalid filters
+- empty datasets
 
 Warn, but do not necessarily fail, on:
 - missing values

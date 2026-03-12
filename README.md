@@ -14,13 +14,11 @@ Core philosophy:
 
 SAIDA helps developers:
 
-- Convert natural-language questions into structured analysis requests using transformer-based NLP
+- Convert natural-language questions into structured analysis requests using rule-based normalization with an optional transformer hook
 - Run deterministic analytics
 - Perform statistical analysis
-- Train predictive models
-- Generate forecasts
 - Attach semantic context to datasets
-- Optionally use LLM reasoning for interpretation and responses.
+- Optionally use deterministic or LLM-backed reasoning for interpretation and responses.
 
 SAIDA is designed to be:
 
@@ -35,7 +33,7 @@ The library focuses on **structured analytics first**, with optional semantic re
 
 Prompt handling follows a three-stage design:
 
-- transformer-based NLP extracts structured intent from the user question
+- request normalization extracts structured intent from the user question
 - deterministic compute produces facts, metrics, and model outputs
 - optional LLM reasoning explains computed outputs without changing them
 
@@ -86,7 +84,7 @@ python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sal
 
 ### Prompt Understanding
 
-- transformer-based modern NLP for request understanding
+- rule-based request normalization with an optional transformer classifier hook
 - intent classification
 - metric and target extraction
 - date and period extraction
@@ -97,19 +95,19 @@ python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sal
 
 - descriptive analytics
 - segmentation
-- cohort analysis
 - anomaly detection
 - correlation analysis
 - time-series analysis
+- grouped period comparison
+- top-mover diagnostics
 
 ### Machine Learning
 
 Not implemented yet in the current repo build.
 
-- regression
-- classification
-- forecasting
-- model evaluation
+- `train(...)`
+- `predict(...)`
+- `forecast(...)`
 
 ### Semantic Context
 
@@ -131,11 +129,12 @@ The current implementation is focused on the non-ML deterministic core:
 
 - CSV, Excel, JSON, Pandas, and SQLite-backed SQL adapters
 - semantic markdown context parsing
-- dataset profiling
-- request normalization
+- dataset profiling and readiness hints
+- request normalization with rules and an optional transformer hook
 - deterministic planning
-- DuckDB analytics
-- deterministic statistical summaries and anomaly checks
+- DuckDB analytics for summaries, trends, grouped comparisons, contribution analysis, and top movers
+- deterministic statistical summaries, correlations, anomaly checks, and time-series diagnostics
+- working CLI commands for `version`, `profile`, and `analyze` against CSV input
 
 `train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
 

@@ -1,8 +1,14 @@
 # Machine Learning Pipeline
 
-SAIDA supports predictive modeling and forecasting.
+SAIDA defines a future predictive modeling and forecasting surface.
 
 Machine learning is **separate from deterministic analytics**.
+
+Current repo status:
+
+- `train(...)`, `predict(...)`, and `forecast(...)` exist in the public API
+- the current build raises clear not-implemented errors for these methods
+- deterministic analytics is the active implementation focus right now
 
 ---
 
@@ -63,7 +69,7 @@ Example:
 
 ## Libraries
 
-SAIDA uses lightweight ML libraries:
+Planned ML dependencies remain lightweight:
 
 - scikit-learn
 - XGBoost
