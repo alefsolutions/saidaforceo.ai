@@ -22,23 +22,32 @@ print(result.summary)
 
 ---
 
-# Forecast Example
+# Profile Example
 
 ```
-forecast = engine.forecast(
-    dataset=dataset,
-    target="sales",
-    horizon=3
-)
+profile = engine.profile(dataset)
+
+print(profile.measure_columns)
+print(profile.time_columns)
 ```
 
 ---
 
-# Train Model
+# Local CLI Example
 
 ```
-model = engine.train(
-    dataset=dataset,
-    target="revenue"
-)
+$env:PYTHONPATH="src"
+python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March?"
 ```
+
+---
+
+# ML Methods
+
+```
+engine.train(...)
+engine.predict(...)
+engine.forecast(...)
+```
+
+These methods are intentionally not implemented yet in the current repo build.

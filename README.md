@@ -44,7 +44,7 @@ Prompt handling follows a three-stage design:
 # Installation
 
 ```bash
-pip install saida
+pip install -e .
 ```
 
 ---
@@ -65,6 +65,19 @@ result = engine.analyze(
 )
 
 print(result.summary)
+```
+
+For local development in this repo, use:
+
+```bash
+python -m pytest -q
+```
+
+or try the CLI with the bundled sample files:
+
+```bash
+$env:PYTHONPATH="src"
+python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March by region?"
 ```
 
 ---
@@ -91,6 +104,8 @@ print(result.summary)
 
 ### Machine Learning
 
+Not implemented yet in the current repo build.
+
 - regression
 - classification
 - forecasting
@@ -107,6 +122,22 @@ SAIDA keeps reasoning model-agnostic.
 - Any compatible LLM provider may be used
 - **LLMs interpret computed results, not generate facts**
 - Core analytics workflows remain usable without an LLM
+
+---
+
+# Current Status
+
+The current implementation is focused on the non-ML deterministic core:
+
+- CSV, Excel, JSON, Pandas, and SQLite-backed SQL adapters
+- semantic markdown context parsing
+- dataset profiling
+- request normalization
+- deterministic planning
+- DuckDB analytics
+- deterministic statistical summaries and anomaly checks
+
+`train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
 
 ---
 

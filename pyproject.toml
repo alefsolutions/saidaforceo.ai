@@ -8,6 +8,14 @@ version = "0.1.0"
 description = "SAIDA lightweight deterministic analytics library"
 readme = "README.md"
 requires-python = ">=3.11"
+keywords = ["analytics", "duckdb", "python", "deterministic", "data-analysis"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "License :: OSI Approved :: MIT License",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
   "duckdb>=1.1.0",
   "numpy>=1.26.0",
