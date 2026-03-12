@@ -193,6 +193,8 @@ def test_engine_returns_clarification_when_llm_requests_it() -> None:
     assert result.summary == "Please clarify the target metric."
     assert result.plan.task_type == "clarification"
     assert result.tables == []
+    assert result.response["status"] == "clarify"
+    assert result.response["outputs"]["summary"] == "Please clarify the target metric."
 
 
 def test_engine_returns_refusal_when_llm_declines_request() -> None:
@@ -209,6 +211,33 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     assert result.summary == "We are not able to provide this information at this time."
     assert result.plan.task_type == "unavailable"
     assert result.metrics == []
+    assert result.response["status"] == "refuse"
+    assert result.response["outputs"]["summary"] == "We are not able to provide this information at this time."
+
+
+def test_engine_analysis_response_contract_records_intent_and_operations() -> None:
+    engine = Saida()
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
+                "revenue": [100.0, 90.0, 80.0],
+                "region": ["West", "West", "East"],
+            }
+        ),
+    )
+
+    result = engine.analyze(dataset, "What is the average revenue?")
+
+    assert result.response["schema_version"] == "saida.analysis_response.v1"
+    assert result.response["status"] == "ok"
+    assert result.response["intent"]["aggregation"] == "mean"
+    assert result.response["intent"]["target"] == "revenue"
+    assert result.response["plan"]["step_count"] >= 1
+    assert any(operation["action"] == "aggregate_value" for operation in result.response["operations"])
+    assert "revenue_mean" in result.response["outputs"]["metric_lookup"]
 
 
 def test_llm_factory_builds_openai_provider() -> None:

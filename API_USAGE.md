@@ -18,6 +18,7 @@ result = engine.analyze(
 )
 
 print(result.summary)
+print(result.to_response_dict())
 ```
 
 The current non-ML build supports month-based time references reliably. Quarter-style prompts are documented as future work.
@@ -35,6 +36,14 @@ result = engine.analyze(
 
 print(result.summary)
 ```
+
+`result.to_response_dict()` returns the standardized analytical response contract. It includes:
+- original question
+- resolved intent
+- plan and operations
+- computed metric lookup
+- output table metadata
+- warnings and trace events
 
 ---
 

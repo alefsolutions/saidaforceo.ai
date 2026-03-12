@@ -340,6 +340,7 @@ class AnalysisResult:
     plan: AnalysisPlan
     trace: list[ExecutionTraceEvent]
     artifacts: dict[str, Any]
+    response: dict[str, Any]
 ```
 
 ### Notes
@@ -349,6 +350,13 @@ This must be rich enough for:
 - later API exposure
 
 The `summary` field may be generated deterministically or via an optional LLM reasoning layer, but it must remain grounded in computed outputs.
+The `response` field should be JSON-safe and describe:
+- the original question
+- resolved intent
+- plan and operations
+- computed outputs
+- warnings
+- trace events
 
 ---
 

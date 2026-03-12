@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
 from pathlib import Path
 
@@ -109,26 +108,7 @@ def _profile_payload(profile: DatasetProfile) -> dict[str, object]:
 
 def _analysis_payload(result: AnalysisResult) -> dict[str, object]:
     """Convert an analysis result into a small JSON-safe payload."""
-    return {
-        "summary": result.summary,
-        "warnings": list(result.warnings),
-        "metrics": [asdict(metric) for metric in result.metrics],
-        "tables": [
-            {
-                "name": table.name,
-                "description": table.description,
-                "rows": int(len(table.dataframe)),
-                "columns": list(table.dataframe.columns),
-            }
-            for table in result.tables
-        ],
-        "plan": {
-            "task_type": result.plan.task_type,
-            "rationale": result.plan.rationale,
-            "steps": [asdict(step) for step in result.plan.steps],
-        },
-        "trace": [asdict(event) for event in result.trace],
-    }
+    return result.to_response_dict()
 
 
 def _build_cli_config(provider: str | None, model: str | None, base_url: str | None) -> SaidaConfig:

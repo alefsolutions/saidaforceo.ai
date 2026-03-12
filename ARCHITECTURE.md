@@ -160,6 +160,7 @@ Contains:
 - metrics
 - summary text
 - execution traces
+- a JSON-safe analytical response contract describing resolved intent, plan, operations, outputs, and warnings
 
 ---
 

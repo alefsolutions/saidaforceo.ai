@@ -250,6 +250,7 @@ Typical output:
 - execution trace
 - analysis plan
 - analysis artifacts
+- standardized analytical response contract
 
 This output should be useful for:
 - direct printing

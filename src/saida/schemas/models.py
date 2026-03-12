@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -174,6 +175,11 @@ class AnalysisResult:
     plan: AnalysisPlan
     trace: list[ExecutionTraceEvent]
     artifacts: dict[str, Any] = field(default_factory=dict)
+    response: dict[str, Any] = field(default_factory=dict)
+
+    def to_response_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe analytical response contract."""
+        return deepcopy(self.response)
 
 
 @dataclass(slots=True)

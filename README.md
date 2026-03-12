@@ -38,6 +38,8 @@ Prompt handling follows a three-stage design:
 - deterministic compute produces facts, metrics, and model outputs
 - optional LLM reasoning explains computed outputs without changing them
 
+The final analysis result also includes a standardized JSON-safe response contract so callers can inspect what SAIDA understood, planned, executed, and returned.
+
 ---
 
 # Installation
@@ -64,6 +66,7 @@ result = engine.analyze(
 )
 
 print(result.summary)
+print(result.to_response_dict())
 ```
 
 For local development in this repo, use:
@@ -86,6 +89,8 @@ $env:PYTHONPATH="src"
 python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March?" --show-plan --show-trace
 python -m saida.cli.main profile --csv examples/sales.csv --json
 ```
+
+The `analyze --json` path emits the standardized analytical response contract directly.
 
 You can also enable an optional local or hosted LLM provider for prompt interpretation and response wording:
 
