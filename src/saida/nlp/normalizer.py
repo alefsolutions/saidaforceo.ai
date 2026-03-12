@@ -12,6 +12,13 @@ from saida.llm import IntentProposal
 from saida.schemas import AnalysisRequest, Dataset, DatasetProfile, SourceContext
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
+AGGREGATION_KEYWORDS = {
+    "mean": {"average", "mean", "avg"},
+    "max": {"highest", "maximum", "max", "top", "largest", "best"},
+    "min": {"lowest", "minimum", "min", "smallest", "worst"},
+    "sum": {"total", "sum"},
+    "count": {"count", "how many", "number of"},
+}
 TASK_KEYWORDS = {
     "forecasting": {"forecast", "predict next", "projection", "future"},
     "predictive": {"train", "predict", "classification", "regression", "model"},
@@ -48,6 +55,7 @@ class RequestNormalizer:
             task_type_hint = self._maybe_refine_task_with_transformers(question, task_type_hint, warnings)
 
         target = self._resolve_target(question, profile, context)
+        aggregation = self._extract_aggregation(question)
         time_reference = self._extract_time_reference(question)
         horizon = self._extract_horizon(question)
         group_by = self._extract_group_by(question, profile)
@@ -63,6 +71,7 @@ class RequestNormalizer:
             question=question,
             task_type_hint=task_type_hint,
             target=target,
+            aggregation=aggregation,
             horizon=horizon,
             filters=filters,
             group_by=group_by,
@@ -85,6 +94,7 @@ class RequestNormalizer:
 
         rule_task_type = self._classify_task(question)
         rule_target = self._resolve_target(question, profile, context)
+        rule_aggregation = self._extract_aggregation(question)
         rule_time_reference = self._extract_time_reference(question)
         rule_horizon = self._extract_horizon(question)
         rule_group_by = self._extract_group_by(question, profile)
@@ -92,6 +102,7 @@ class RequestNormalizer:
 
         task_type_hint = self._validate_task_type(proposal.task_type_hint) or rule_task_type
         target = self._resolve_candidate_column(proposal.target, profile, context)
+        aggregation = self._validate_aggregation(proposal.aggregation) or rule_aggregation
         if target is None:
             target = rule_target
         group_by = self._resolve_candidate_group_by(proposal.group_by, profile)
@@ -115,6 +126,7 @@ class RequestNormalizer:
             question=question,
             task_type_hint=task_type_hint,
             target=target,
+            aggregation=aggregation,
             horizon=horizon,
             filters=filters,
             group_by=group_by,
@@ -165,15 +177,23 @@ class RequestNormalizer:
 
     def _resolve_target(self, question: str, profile: DatasetProfile, context: SourceContext | None) -> str | None:
         lowered = question.lower()
-        aliases: dict[str, str] = {}
+        measure_aliases: dict[str, str] = {}
         if context:
             for metric_name in context.metric_definitions:
-                aliases[metric_name.lower()] = metric_name
-        for column_name in profile.measure_columns + profile.dimension_columns:
-            aliases[column_name.lower()] = column_name
-        for alias, resolved_name in aliases.items():
+                measure_aliases[metric_name.lower()] = metric_name
+        for column_name in profile.measure_columns:
+            measure_aliases[column_name.lower()] = column_name
+
+        for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
                 return resolved_name
+        return None
+
+    def _extract_aggregation(self, question: str) -> str | None:
+        lowered = question.lower()
+        for aggregation, keywords in AGGREGATION_KEYWORDS.items():
+            if any(keyword in lowered for keyword in keywords):
+                return aggregation
         return None
 
     def _extract_time_reference(self, question: str) -> dict[str, str] | None:
@@ -265,6 +285,11 @@ class RequestNormalizer:
     def _validate_task_type(self, task_type_hint: str | None) -> str | None:
         if task_type_hint in TASK_LABELS:
             return task_type_hint
+        return None
+
+    def _validate_aggregation(self, aggregation: str | None) -> str | None:
+        if aggregation in AGGREGATION_KEYWORDS:
+            return aggregation
         return None
 
     def _resolve_candidate_column(

@@ -142,6 +142,7 @@ class AnalysisRequest:
     question: str
     task_type_hint: str | None
     target: str | None
+    aggregation: str | None
     horizon: int | None
     filters: dict[str, Any] | None
     group_by: list[str] | None
@@ -152,6 +153,12 @@ class AnalysisRequest:
 ### Notes
 This should capture user intent at the library boundary.
 It is expected to be produced by the NLP/request-normalization layer before planning.
+Supported aggregation values in the current non-ML build are:
+- sum
+- mean
+- max
+- min
+- count
 
 ---
 

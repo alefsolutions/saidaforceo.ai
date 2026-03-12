@@ -200,6 +200,42 @@ def test_summarizer_uses_dataset_label_when_target_missing() -> None:
     assert "Completed a descriptive analysis for the dataset on sales." in summary
 
 
+def test_summarizer_leads_with_average_aggregation() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(question="What is the average revenue?", task_type_hint="descriptive", target="revenue", aggregation="mean")
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[Metric(name="revenue_mean", value=93.375)],
+        tables=[],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Average revenue is 93.38." in summary
+
+
+def test_summarizer_leads_with_highest_aggregation() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(question="What is the highest revenue?", task_type_hint="descriptive", target="revenue", aggregation="max")
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[Metric(name="revenue_max", value=120.0)],
+        tables=[],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Highest revenue is 120.00." in summary
+
+
 import pytest
 
 

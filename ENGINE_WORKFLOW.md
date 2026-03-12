@@ -117,6 +117,7 @@ This stage extracts:
 - question
 - task hint
 - target
+- aggregation intent
 - forecast horizon
 - filters
 - grouping hints
@@ -150,6 +151,12 @@ Example:
 - Step 3: stats correlation check
 - Step 4: reasoning summary
 
+Supported non-ML request shapes now include direct aggregation prompts such as:
+- average revenue
+- highest sale in March
+- lowest daily sales by city
+- total revenue for Port Moresby
+
 ### Planning design
 Prefer deterministic rules first.
 Optional LLM-assisted planning can be layered on top, but it should remain optional.
@@ -180,6 +187,7 @@ The engine executes plan steps in order.
 Used for:
 - filtering
 - aggregations
+- direct aggregate value queries such as mean, max, min, sum, and count
 - grouped period comparisons
 - top movers
 - time bucketing

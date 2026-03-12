@@ -26,6 +26,20 @@ class AnalysisPlanner:
             warnings.append("No target was provided; using the first measure column.")
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
+            if request.target and request.aggregation:
+                steps.append(
+                    PlanStep(
+                        step_id="aggregate_value",
+                        tool_family="duckdb",
+                        action="aggregate_value",
+                        parameters={
+                            "target": request.target,
+                            "aggregation": request.aggregation,
+                            "filters": request.filters,
+                        },
+                        description=f"Compute the {request.aggregation} value for the requested target.",
+                    )
+                )
             steps.append(
                 PlanStep(
                     step_id="summary_metrics",
@@ -44,6 +58,7 @@ class AnalysisPlanner:
                         parameters={
                             "target": request.target,
                             "time_column": profile.time_columns[0],
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                         },
                         description="Compute the target trend over time.",
@@ -59,6 +74,7 @@ class AnalysisPlanner:
                             "target": request.target,
                             "time_column": profile.time_columns[0],
                             "time_reference": request.time_reference,
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                         },
                         description="Compare the requested period against the previous comparable period.",
@@ -75,6 +91,7 @@ class AnalysisPlanner:
                                 "group_by": request.group_by,
                                 "time_column": profile.time_columns[0],
                                 "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
                                 "filters": request.filters,
                             },
                             description="Compare grouped totals between adjacent periods.",
@@ -86,7 +103,12 @@ class AnalysisPlanner:
                         step_id="group_breakdown",
                         tool_family="duckdb",
                         action="group_breakdown",
-                        parameters={"target": request.target, "group_by": request.group_by, "filters": request.filters},
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
                         description="Break down the target metric by requested dimensions.",
                     )
                 )
@@ -98,6 +120,7 @@ class AnalysisPlanner:
                         parameters={
                             "target": request.target,
                             "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                             "limit": 5,
                         },
@@ -115,6 +138,7 @@ class AnalysisPlanner:
                                 "group_by": request.group_by,
                                 "time_column": profile.time_columns[0],
                                 "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
                                 "filters": request.filters,
                                 "limit": 5,
                             },
@@ -130,6 +154,7 @@ class AnalysisPlanner:
                         parameters={
                             "target": request.target,
                             "group_by": [profile.dimension_columns[0]],
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                         },
                         description="Break down the target metric by the leading dimension candidate.",
@@ -143,6 +168,7 @@ class AnalysisPlanner:
                         parameters={
                             "target": request.target,
                             "group_by": [profile.dimension_columns[0]],
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                             "limit": 5,
                         },
@@ -160,6 +186,7 @@ class AnalysisPlanner:
                                 "group_by": [profile.dimension_columns[0]],
                                 "time_column": profile.time_columns[0],
                                 "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
                                 "filters": request.filters,
                                 "limit": 5,
                             },
@@ -177,6 +204,7 @@ class AnalysisPlanner:
                             "group_by": request.group_by or [profile.dimension_columns[0]],
                             "time_column": profile.time_columns[0] if profile.time_columns else None,
                             "time_reference": request.time_reference,
+                            "aggregation": request.aggregation or "sum",
                             "filters": request.filters,
                         },
                         description="Estimate group-level contribution changes for the diagnostic workflow.",
@@ -282,6 +310,7 @@ class AnalysisPlanner:
 
     def _validate_request(self, request: AnalysisRequest, profile: DatasetProfile) -> None:
         supported_tasks = {"descriptive", "diagnostic", "statistical", "predictive", "forecasting"}
+        supported_aggregations = {"sum", "mean", "max", "min", "count"}
         task_type = request.task_type_hint or "descriptive"
         if task_type not in supported_tasks:
             raise PlanningError(f"Unsupported analysis task type: {task_type}")
@@ -315,13 +344,20 @@ class AnalysisPlanner:
         if request.time_reference and request.time_reference.get("type") != "month_name":
             raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
 
-        if task_type in {"diagnostic", "statistical", "forecasting", "predictive"} and request.target is None:
+        if request.aggregation and request.aggregation not in supported_aggregations:
+            raise PlanningError(f"Unsupported aggregation: {request.aggregation}")
+
+        if task_type in {"diagnostic", "statistical", "predictive"} and request.target is None:
             raise PlanningError(f"{task_type.title()} analysis requires a target metric.")
+        if task_type == "forecasting" and request.target is None:
+            raise PlanningError("Forecasting requires a target metric.")
 
     def _build_rationale(self, task_type: str, request: AnalysisRequest, context: SourceContext | None) -> str:
         rationale = f"Selected a {task_type} workflow based on the normalized request."
         if request.target:
             rationale += f" Target metric: {request.target}."
+        if request.aggregation:
+            rationale += f" Aggregation: {request.aggregation}."
         if context and context.metric_definitions:
             rationale += " Semantic metric definitions were available."
         if request.filters:

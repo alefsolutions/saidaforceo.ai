@@ -12,6 +12,14 @@ from saida.schemas import Metric, TableArtifact
 class DuckDBComputeEngine:
     """Run deterministic analytical queries against a pandas DataFrame."""
 
+    AGGREGATION_EXPRESSIONS = {
+        "sum": "sum(target_value)",
+        "mean": "avg(target_value)",
+        "max": "max(target_value)",
+        "min": "min(target_value)",
+        "count": "count(target_value)",
+    }
+
     def dataset_summary(
         self,
         dataframe: pd.DataFrame,
@@ -29,7 +37,7 @@ class DuckDBComputeEngine:
         if target:
             try:
                 connection = duckdb.connect()
-                connection.register("source_df", prepared)
+                connection.register("source_df", self._prepare_for_duckdb(prepared))
                 value = connection.execute(f'select sum("{target}") as total_value from source_df').fetchone()[0]
                 connection.close()
             except Exception as exc:  # pragma: no cover
@@ -40,24 +48,60 @@ class DuckDBComputeEngine:
         tables = [TableArtifact(name="dataset_preview", description="First 10 rows of the dataset.", dataframe=preview)]
         return metrics, tables
 
+    def aggregate_value(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        aggregation: str,
+        filters: dict[str, str] | None = None,
+    ) -> list[Metric]:
+        """Compute a single deterministic aggregate value for a target column."""
+        prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, [target])
+        expression = self._aggregation_expression(aggregation)
+        try:
+            connection = duckdb.connect()
+            connection.register(
+                "source_df",
+                self._prepare_for_duckdb(prepared.assign(target_value=prepared[target])),
+            )
+            value = connection.execute(f"select {expression} as aggregate_value from source_df").fetchone()[0]
+            connection.close()
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError(f"Failed to compute {aggregation} for target '{target}'.") from exc
+
+        if aggregation == "count":
+            metric_value: float | int = int(value or 0)
+        else:
+            metric_value = float(value or 0.0)
+        return [
+            Metric(
+                name=f"{target}_{aggregation}",
+                value=metric_value,
+                description=f"{aggregation.title()} of {target}.",
+            )
+        ]
+
     def time_trend(
         self,
         dataframe: pd.DataFrame,
         target: str,
         time_column: str,
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Aggregate a target over monthly time buckets."""
         prepared = self._apply_filters(dataframe, filters).copy()
         self._require_columns(prepared, [target, time_column])
+        expression = self._aggregation_expression(aggregation)
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column])
         prepared["period_month"] = prepared[time_column].dt.to_period("M").astype(str)
-        query = """
+        query = f"""
             with monthly_totals as (
                 select
                     period_month,
-                    sum(target_value) as target_total
+                    {expression} as target_total
                 from prepared
                 group by period_month
             )
@@ -70,12 +114,15 @@ class DuckDBComputeEngine:
         """
         try:
             connection = duckdb.connect()
-            connection.register("prepared", prepared.assign(target_value=prepared[target]))
+            connection.register(
+                "prepared",
+                self._prepare_for_duckdb(prepared.assign(target_value=prepared[target])),
+            )
             trend = connection.execute(query).fetchdf()
             connection.close()
         except Exception as exc:  # pragma: no cover
             raise ComputeError(f"Failed to compute time trend for target '{target}'.") from exc
-        return TableArtifact(name="time_trend", description=f"Monthly trend for {target}.", dataframe=trend)
+        return TableArtifact(name="time_trend", description=f"Monthly {aggregation} trend for {target}.", dataframe=trend)
 
     def grouped_period_comparison(
         self,
@@ -84,11 +131,13 @@ class DuckDBComputeEngine:
         group_by: list[str],
         time_column: str,
         time_reference: dict[str, str],
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Compare grouped totals between adjacent periods."""
         prepared = self._apply_filters(dataframe, filters).copy()
         self._require_columns(prepared, [target, time_column, *group_by])
+        expression = self._aggregation_expression(aggregation)
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column, target])
         prepared["period_month"] = prepared[time_column].dt.to_period("M")
@@ -105,8 +154,8 @@ class DuckDBComputeEngine:
         current_slice = prepared.loc[prepared["period_month"] == current_period]
         previous_slice = prepared.loc[prepared["period_month"] == previous_period]
 
-        current_grouped = current_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="current_total")
-        previous_grouped = previous_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="previous_total")
+        current_grouped = self._grouped_aggregate(current_slice, group_by, target, expression, "current_total")
+        previous_grouped = self._grouped_aggregate(previous_slice, group_by, target, expression, "previous_total")
 
         comparison = current_grouped.merge(previous_grouped, on=group_by, how="outer").fillna(0.0)
         comparison["delta"] = comparison["current_total"] - comparison["previous_total"]
@@ -118,7 +167,7 @@ class DuckDBComputeEngine:
 
         return TableArtifact(
             name="grouped_period_comparison",
-            description=f"Grouped period comparison for {target}.",
+            description=f"Grouped {aggregation} period comparison for {target}.",
             dataframe=comparison.reset_index(drop=True),
         )
 
@@ -129,6 +178,7 @@ class DuckDBComputeEngine:
         group_by: list[str],
         time_column: str,
         time_reference: dict[str, str],
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
         limit: int = 5,
     ) -> TableArtifact:
@@ -139,13 +189,14 @@ class DuckDBComputeEngine:
             group_by=group_by,
             time_column=time_column,
             time_reference=time_reference,
+            aggregation=aggregation,
             filters=filters,
         ).dataframe.copy()
 
         if comparison.empty:
             return TableArtifact(
                 name="top_movers",
-                description=f"No movers were available for {target}.",
+            description=f"No movers were available for {target}.",
                 dataframe=comparison,
             )
 
@@ -157,7 +208,7 @@ class DuckDBComputeEngine:
         comparison = comparison.loc[:, [column for column in ordered_columns if column in comparison.columns]]
         return TableArtifact(
             name="top_movers",
-            description=f"Top {limit} movers for {target}.",
+            description=f"Top {limit} movers for {target} using {aggregation}.",
             dataframe=comparison.reset_index(drop=True),
         )
 
@@ -166,45 +217,51 @@ class DuckDBComputeEngine:
         dataframe: pd.DataFrame,
         target: str,
         group_by: list[str],
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Aggregate a target by one or more grouping columns."""
         prepared = self._apply_filters(dataframe, filters)
         self._require_columns(prepared, [target, *group_by])
+        expression = self._aggregation_expression(aggregation)
         group_column_sql = ", ".join(group_by)
         query = f"""
             select
                 {group_column_sql},
-                sum(target_value) as target_total
+                {expression} as target_total
             from prepared
             group by {group_column_sql}
             order by target_total desc
         """
         try:
             connection = duckdb.connect()
-            connection.register("prepared", prepared.assign(target_value=prepared[target]))
+            connection.register(
+                "prepared",
+                self._prepare_for_duckdb(prepared.assign(target_value=prepared[target])),
+            )
             grouped = connection.execute(query).fetchdf()
             connection.close()
         except Exception as exc:  # pragma: no cover
             raise ComputeError(f"Failed to compute grouped breakdown for target '{target}'.") from exc
-        return TableArtifact(name="group_breakdown", description=f"Grouped breakdown for {target}.", dataframe=grouped)
+        return TableArtifact(name="group_breakdown", description=f"Grouped {aggregation} breakdown for {target}.", dataframe=grouped)
 
     def ranked_breakdown(
         self,
         dataframe: pd.DataFrame,
         target: str,
         group_by: list[str],
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
         limit: int = 5,
     ) -> TableArtifact:
         """Return the top grouped contributors by target total."""
-        grouped = self.group_breakdown(dataframe, target, group_by, filters).dataframe.head(limit).copy()
+        grouped = self.group_breakdown(dataframe, target, group_by, aggregation, filters).dataframe.head(limit).copy()
         grouped["rank"] = range(1, len(grouped) + 1)
         ordered_columns = ["rank", *group_by, "target_total"]
         ranked = grouped.loc[:, [column for column in ordered_columns if column in grouped.columns]]
         return TableArtifact(
             name="ranked_breakdown",
-            description=f"Top {limit} grouped contributors for {target}.",
+            description=f"Top {limit} grouped contributors for {target} using {aggregation}.",
             dataframe=ranked,
         )
 
@@ -215,17 +272,18 @@ class DuckDBComputeEngine:
         group_by: list[str],
         time_column: str | None = None,
         time_reference: dict[str, str] | None = None,
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Measure group contribution deltas between adjacent periods when possible."""
         self._require_columns(dataframe, [target, *group_by])
         if time_column is None or time_reference is None:
-            grouped = self.group_breakdown(dataframe, target, group_by, filters).dataframe.copy()
+            grouped = self.group_breakdown(dataframe, target, group_by, aggregation, filters).dataframe.copy()
             total = float(grouped["target_total"].sum()) if not grouped.empty else 0.0
             grouped["share_of_total"] = grouped["target_total"].apply(lambda value: float(value / total) if total else 0.0)
             return TableArtifact(
                 name="contribution_breakdown",
-                description=f"Share of total {target} by group.",
+                description=f"Share of total {aggregation} {target} by group.",
                 dataframe=grouped,
             )
 
@@ -242,6 +300,7 @@ class DuckDBComputeEngine:
                 group_by,
                 time_column=None,
                 time_reference=None,
+                aggregation=aggregation,
                 filters=filters,
             )
 
@@ -260,8 +319,9 @@ class DuckDBComputeEngine:
         current_slice = prepared.loc[prepared["period_month"] == current_period]
         previous_slice = prepared.loc[prepared["period_month"] == previous_period]
 
-        current_grouped = current_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="current_total")
-        previous_grouped = previous_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="previous_total")
+        expression = self._aggregation_expression(aggregation)
+        current_grouped = self._grouped_aggregate(current_slice, group_by, target, expression, "current_total")
+        previous_grouped = self._grouped_aggregate(previous_slice, group_by, target, expression, "previous_total")
 
         merged = current_grouped.merge(previous_grouped, on=group_by, how="outer").fillna(0.0)
         merged["delta"] = merged["current_total"] - merged["previous_total"]
@@ -269,7 +329,7 @@ class DuckDBComputeEngine:
 
         return TableArtifact(
             name="contribution_breakdown",
-            description=f"Contribution deltas for {target} between adjacent periods.",
+            description=f"Contribution deltas for {aggregation} {target} between adjacent periods.",
             dataframe=merged.reset_index(drop=True),
         )
 
@@ -279,11 +339,13 @@ class DuckDBComputeEngine:
         target: str,
         time_column: str,
         time_reference: dict[str, str],
+        aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Compare a selected period against the immediately previous comparable period."""
         prepared = self._apply_filters(dataframe, filters).copy()
         self._require_columns(prepared, [target, time_column])
+        expression = self._aggregation_expression(aggregation)
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column, target])
         prepared["period_month"] = prepared[time_column].dt.to_period("M")
@@ -306,8 +368,8 @@ class DuckDBComputeEngine:
             )
         current_period, previous_period = periods
 
-        current_total = prepared.loc[prepared["period_month"] == current_period, target].sum()
-        previous_total = prepared.loc[prepared["period_month"] == previous_period, target].sum()
+        current_total = self._aggregate_series(prepared.loc[prepared["period_month"] == current_period, target], aggregation)
+        previous_total = self._aggregate_series(prepared.loc[prepared["period_month"] == previous_period, target], aggregation)
 
         comparison = pd.DataFrame(
             {
@@ -319,7 +381,7 @@ class DuckDBComputeEngine:
 
         return TableArtifact(
             name="period_comparison",
-            description=f"Comparison for {target} across adjacent periods.",
+            description=f"Comparison for {aggregation} {target} across adjacent periods.",
             dataframe=comparison,
         )
 
@@ -364,3 +426,57 @@ class DuckDBComputeEngine:
         if missing_columns:
             joined = ", ".join(missing_columns)
             raise ComputeError(f"Required columns are missing from the dataset: {joined}")
+
+    def _aggregation_expression(self, aggregation: str) -> str:
+        if aggregation not in self.AGGREGATION_EXPRESSIONS:
+            raise ComputeError(f"Unsupported aggregation: {aggregation}")
+        return self.AGGREGATION_EXPRESSIONS[aggregation]
+
+    def _grouped_aggregate(
+        self,
+        dataframe: pd.DataFrame,
+        group_by: list[str],
+        target: str,
+        expression: str,
+        output_name: str,
+    ) -> pd.DataFrame:
+        prepared = dataframe.assign(target_value=dataframe[target])
+        group_column_sql = ", ".join(group_by)
+        query = f"""
+            select
+                {group_column_sql},
+                {expression} as {output_name}
+            from prepared
+            group by {group_column_sql}
+        """
+        try:
+            connection = duckdb.connect()
+            connection.register("prepared", self._prepare_for_duckdb(prepared))
+            grouped = connection.execute(query).fetchdf()
+            connection.close()
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError("Failed to compute grouped aggregate.") from exc
+        return grouped
+
+    def _prepare_for_duckdb(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        prepared = dataframe.copy()
+        for column_name in prepared.columns:
+            if isinstance(prepared[column_name].dtype, pd.PeriodDtype):
+                prepared[column_name] = prepared[column_name].astype(str)
+        return prepared
+
+    def _aggregate_series(self, series: pd.Series, aggregation: str) -> float:
+        numeric_series = pd.to_numeric(series, errors="coerce").dropna()
+        if numeric_series.empty:
+            return 0.0
+        if aggregation == "sum":
+            return float(numeric_series.sum())
+        if aggregation == "mean":
+            return float(numeric_series.mean())
+        if aggregation == "max":
+            return float(numeric_series.max())
+        if aggregation == "min":
+            return float(numeric_series.min())
+        if aggregation == "count":
+            return float(numeric_series.count())
+        raise ComputeError(f"Unsupported aggregation: {aggregation}")

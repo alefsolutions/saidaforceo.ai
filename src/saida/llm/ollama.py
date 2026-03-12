@@ -37,6 +37,7 @@ class OllamaLlmProvider(BaseLlmProvider):
             status=str(payload.get("status", "ready")),
             task_type_hint=self._maybe_string(payload.get("task_type_hint")),
             target=self._maybe_string(payload.get("target")),
+            aggregation=self._maybe_string(payload.get("aggregation")),
             horizon=self._maybe_int(payload.get("horizon")),
             filters=self._maybe_string_dict(payload.get("filters")),
             group_by=self._maybe_string_list(payload.get("group_by")),
@@ -108,7 +109,7 @@ class OllamaLlmProvider(BaseLlmProvider):
             'Allowed status values: "ready", "clarify", "refuse".\n'
             "Do not invent columns.\n"
             "If uncertain, use clarify or refuse.\n"
-            "Return keys: status, task_type_hint, target, horizon, filters, group_by, time_reference, message, warnings.\n"
+            "Return keys: status, task_type_hint, target, aggregation, horizon, filters, group_by, time_reference, message, warnings.\n"
             f"Dataset: {dataset_name}\n"
             f"Profile summary: {profile_summary}\n"
             f"Context summary: {context_summary or 'none'}\n"

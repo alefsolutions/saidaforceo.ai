@@ -85,6 +85,37 @@ def test_planner_builds_grouped_descriptive_plan() -> None:
     assert "ranked_breakdown" in actions
 
 
+def test_planner_builds_aggregate_value_plan_for_average_request() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What is the average revenue?",
+        task_type_hint="descriptive",
+        target="revenue",
+        aggregation="mean",
+    )
+
+    plan = planner.build_plan(request, build_profile())
+    actions = [step.action for step in plan.steps]
+
+    assert "aggregate_value" in actions
+
+
+def test_planner_passes_aggregation_into_group_breakdown() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show highest revenue by region",
+        task_type_hint="descriptive",
+        target="revenue",
+        aggregation="max",
+        group_by=["region"],
+    )
+
+    plan = planner.build_plan(request, build_profile())
+    group_step = next(step for step in plan.steps if step.action == "group_breakdown")
+
+    assert group_step.parameters["aggregation"] == "max"
+
+
 def test_planner_rejects_invalid_filter_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -123,6 +154,19 @@ def test_planner_rejects_non_month_time_references_for_non_ml_analysis() -> None
     )
 
     with pytest.raises(PlanningError, match="Only month-based time references"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_unsupported_aggregation() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show median revenue",
+        task_type_hint="descriptive",
+        target="revenue",
+        aggregation="median",
+    )
+
+    with pytest.raises(PlanningError, match="Unsupported aggregation"):
         planner.build_plan(request, build_profile())
 
 

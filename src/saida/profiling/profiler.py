@@ -185,7 +185,7 @@ class DatasetProfiler:
             for hint in self.IDENTIFIER_NAME_HINTS
         )
         high_uniqueness = distinct_ratio is not None and distinct_ratio >= 0.98
-        supported_type = inferred_type in {"string", "category", "integer", "numeric"}
+        supported_type = inferred_type in {"string", "category", "integer"}
 
         return supported_type and (high_uniqueness or has_identifier_name)
 
@@ -197,7 +197,7 @@ class DatasetProfiler:
     ) -> bool:
         if inferred_type not in {"integer", "float", "numeric"}:
             return False
-        if unique_count <= 1:
+        if unique_count <= 1 and distinct_ratio not in {1.0, None}:
             return False
         if distinct_ratio is not None and distinct_ratio < 0.02:
             return False

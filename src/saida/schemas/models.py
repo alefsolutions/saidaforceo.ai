@@ -78,6 +78,7 @@ class AnalysisRequest:
     question: str
     task_type_hint: str | None = None
     target: str | None = None
+    aggregation: str | None = None
     horizon: int | None = None
     filters: dict[str, Any] | None = None
     group_by: list[str] | None = None

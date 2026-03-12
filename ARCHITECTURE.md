@@ -35,6 +35,7 @@ Typical responsibilities:
 
 - intent classification
 - metric and target extraction
+- aggregation intent extraction
 - date and period extraction
 - filter and grouping hint extraction
 - ambiguity detection
@@ -119,6 +120,7 @@ Example plans:
 - descriptive analysis
 - diagnostic analysis
 - statistical analysis
+- aggregation-oriented analysis such as average, max, min, sum, and count
 - predictive modeling
 
 ---

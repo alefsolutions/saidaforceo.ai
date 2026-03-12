@@ -137,6 +137,46 @@ def test_duckdb_dataset_summary_returns_core_metrics() -> None:
     assert tables[0].name == "dataset_preview"
 
 
+def test_duckdb_aggregate_value_returns_mean_metric() -> None:
+    engine = DuckDBComputeEngine()
+
+    metrics = engine.aggregate_value(build_dataframe(), target="revenue", aggregation="mean")
+
+    assert metrics[0].name == "revenue_mean"
+    assert metrics[0].value == 120.0
+
+
+def test_duckdb_aggregate_value_returns_max_metric() -> None:
+    engine = DuckDBComputeEngine()
+
+    metrics = engine.aggregate_value(build_dataframe(), target="revenue", aggregation="max")
+
+    assert metrics[0].name == "revenue_max"
+    assert metrics[0].value == 300.0
+
+
+def test_duckdb_group_breakdown_supports_mean_aggregation() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.group_breakdown(build_dataframe(), target="revenue", group_by=["region"], aggregation="mean")
+
+    assert list(table.dataframe["target_total"]) == [160.0, 60.0]
+
+
+def test_duckdb_period_comparison_supports_mean_aggregation() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.period_comparison(
+        build_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        time_reference={"type": "month_name", "value": "march", "month": "3"},
+        aggregation="mean",
+    )
+
+    assert list(table.dataframe["target_total"]) == [100.0, 50.0]
+
+
 def test_duckdb_group_breakdown_orders_by_target_total() -> None:
     engine = DuckDBComputeEngine()
 

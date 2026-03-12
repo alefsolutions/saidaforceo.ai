@@ -28,8 +28,12 @@ class ResultSummarizer:
         if row_count is not None:
             parts.append(f"The dataset contains {row_count} rows.")
 
+        aggregate_part = self._describe_requested_aggregation(metrics, request)
+        if aggregate_part:
+            parts.append(aggregate_part)
+
         target_metric = next((metric for metric in metrics if metric.name.endswith("_sum")), None)
-        if target_metric is not None:
+        if target_metric is not None and request.aggregation != "sum":
             label = target_metric.name.replace("_sum", "").replace("_", " ").title()
             parts.append(f"{label} total is {target_metric.value:.2f}.")
 
@@ -95,6 +99,27 @@ class ResultSummarizer:
             f"{label.title()} moved from {previous_total:.2f} in {previous_row['period']} "
             f"to {current_total:.2f} in {current_row['period']} ({pct_change:+.1%})."
         )
+
+    def _describe_requested_aggregation(self, metrics: list[Metric], request: AnalysisRequest) -> str | None:
+        if not request.target or not request.aggregation:
+            return None
+        metric_name = f"{request.target}_{request.aggregation}"
+        metric_value = self._metric_value(metrics, metric_name)
+        if metric_value is None:
+            return None
+
+        label = request.target.replace("_", " ")
+        if request.aggregation == "mean":
+            return f"Average {label} is {float(metric_value):.2f}."
+        if request.aggregation == "max":
+            return f"Highest {label} is {float(metric_value):.2f}."
+        if request.aggregation == "min":
+            return f"Lowest {label} is {float(metric_value):.2f}."
+        if request.aggregation == "sum":
+            return f"Total {label} is {float(metric_value):.2f}."
+        if request.aggregation == "count":
+            return f"Count of {label} is {int(metric_value)}."
+        return None
 
     def _describe_latest_trend_point(self, dataframe: pd.DataFrame, target: str | None) -> str:
         latest_row = dataframe.iloc[-1]

@@ -150,6 +150,33 @@ def test_normalizer_extracts_horizon_from_prompt() -> None:
     assert request.task_type_hint == "forecasting"
 
 
+def test_normalizer_extracts_average_aggregation() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("What is the average revenue?", build_dataset(), build_profile(), None)
+
+    assert request.target == "revenue"
+    assert request.aggregation == "mean"
+
+
+def test_normalizer_extracts_highest_aggregation() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show highest revenue", build_dataset(), build_profile(), None)
+
+    assert request.target == "revenue"
+    assert request.aggregation == "max"
+
+
+def test_normalizer_extracts_lowest_aggregation() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show lowest revenue", build_dataset(), build_profile(), None)
+
+    assert request.target == "revenue"
+    assert request.aggregation == "min"
+
+
 def test_normalizer_uses_context_metric_aliases() -> None:
     normalizer = RequestNormalizer()
     context = SourceContext(raw_markdown="", metric_definitions={"profit": "net profit"})

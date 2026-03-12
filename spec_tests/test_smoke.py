@@ -356,6 +356,22 @@ def test_analyze_supports_json_adapter_input(tmp_path: Path) -> None:
     assert any(table.name == "period_comparison" for table in result.tables)
 
 
+def test_analyze_computes_average_value_for_aggregation_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-02-01", "2026-02-02", "2026-03-01", "2026-03-02"],
+            "revenue": [100.0, 80.0, 60.0, 40.0],
+            "region": ["West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What is the average revenue?")
+
+    assert "Average revenue is 70.00." in result.summary
+    assert any(metric.name == "revenue_mean" for metric in result.metrics)
+
+
 def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     database_path = tmp_path / "sales.db"
     connection = sqlite3.connect(database_path)

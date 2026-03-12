@@ -118,12 +118,21 @@ class Saida:
                     )
                     metrics.extend(step_metrics)
                     tables.extend(step_tables)
+                elif step.action == "aggregate_value":
+                    step_metrics = self.duckdb.aggregate_value(
+                        dataset.data,
+                        step.parameters["target"],
+                        step.parameters["aggregation"],
+                        step.parameters.get("filters"),
+                    )
+                    metrics.extend(step_metrics)
                 elif step.action == "time_trend":
                     tables.append(
                         self.duckdb.time_trend(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["time_column"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -133,6 +142,7 @@ class Saida:
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -142,6 +152,7 @@ class Saida:
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                             step.parameters.get("limit", 5),
                         )
@@ -154,6 +165,7 @@ class Saida:
                             step.parameters["group_by"],
                             step.parameters["time_column"],
                             step.parameters["time_reference"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -165,6 +177,7 @@ class Saida:
                             step.parameters["group_by"],
                             step.parameters["time_column"],
                             step.parameters["time_reference"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                             step.parameters.get("limit", 5),
                         )
@@ -177,6 +190,7 @@ class Saida:
                             step.parameters["group_by"],
                             step.parameters.get("time_column"),
                             step.parameters.get("time_reference"),
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -187,6 +201,7 @@ class Saida:
                             step.parameters["target"],
                             step.parameters["time_column"],
                             step.parameters["time_reference"],
+                            step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
                     )

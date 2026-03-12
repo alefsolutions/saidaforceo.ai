@@ -32,10 +32,12 @@ class FakeLlmProvider(BaseLlmProvider):
         group_by = ["region"] if "by region" in lowered else None
         time_reference = {"type": "month_name", "value": "march", "month": "3"} if "march" in lowered else None
         task_type_hint = "diagnostic" if "why" in lowered else "descriptive"
+        aggregation = "mean" if "average" in lowered else None
         return IntentProposal(
             status="ready",
             task_type_hint=task_type_hint,
             target="revenue",
+            aggregation=aggregation,
             group_by=group_by,
             time_reference=time_reference,
             warnings=["llm prompt path used"],

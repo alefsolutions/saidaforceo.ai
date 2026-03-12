@@ -23,6 +23,18 @@ print(result.summary)
 The current non-ML build supports month-based time references reliably. Quarter-style prompts are documented as future work.
 
 When an optional LLM provider is configured, SAIDA lets the model interpret the prompt first and then validates that proposal against the dataset profile and context before creating an `AnalysisRequest`.
+The normalized request can now carry supported aggregation intents such as `sum`, `mean`, `max`, `min`, and `count`.
+
+Aggregation-style prompts are supported by the deterministic core as well:
+
+```python
+result = engine.analyze(
+    dataset=dataset,
+    question="What is the average revenue?"
+)
+
+print(result.summary)
+```
 
 ---
 

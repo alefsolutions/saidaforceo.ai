@@ -112,6 +112,7 @@ python examples/run_analysis.py
 - optional model-agnostic LLM interpretation before validation
 - intent classification
 - metric and target extraction
+- aggregation intent extraction for requests like average, highest, lowest, total, and count
 - date and period extraction
 - filter and grouping hint extraction
 - structured `AnalysisRequest` generation
@@ -120,6 +121,7 @@ python examples/run_analysis.py
 ### Data Analytics
 
 - descriptive analytics
+- deterministic aggregation queries such as sum, average, maximum, minimum, and count
 - segmentation
 - anomaly detection
 - correlation analysis
