@@ -37,6 +37,18 @@ result = engine.analyze(
 print(result.summary)
 ```
 
+Distinct-value prompts are supported for dimension columns as well:
+
+```python
+result = engine.analyze(
+    dataset=dataset,
+    question="Give me a list of all segments"
+)
+
+print(result.summary)
+# Available segment values: Enterprise, SMB.
+```
+
 Grouped aggregation prompts are summarized directly from grouped results, for example:
 
 ```python

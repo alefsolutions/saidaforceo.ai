@@ -341,6 +341,35 @@ def test_summarizer_keeps_scalar_aggregation_summary_concise() -> None:
     assert "The latest period is 2026-04" not in summary
 
 
+def test_summarizer_describes_distinct_value_listing() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Give me a list of all segments",
+        task_type_hint="descriptive",
+        target="segment",
+        options={"distinct_values": True},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[Metric(name="row_count", value=8)],
+        tables=[
+            TableArtifact(
+                name="distinct_values",
+                description="Distinct values.",
+                dataframe=pd.DataFrame({"segment": ["Enterprise", "SMB"], "row_count": [4, 4]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Available segment values: Enterprise, SMB." in summary
+
+
 import pytest
 
 

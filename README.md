@@ -118,6 +118,7 @@ python examples/run_analysis.py
 - intent classification
 - metric and target extraction
 - aggregation intent extraction for requests like average, highest, lowest, total, and count
+- direct dimension-value listing for prompts like "list all segments"
 - date and period extraction
 - filter and grouping hint extraction
 - structured `AnalysisRequest` generation
@@ -127,6 +128,7 @@ python examples/run_analysis.py
 
 - descriptive analytics
 - deterministic aggregation queries such as sum, average, maximum, minimum, and count
+- direct listing of distinct dimension values
 - segmentation
 - anomaly detection
 - correlation analysis

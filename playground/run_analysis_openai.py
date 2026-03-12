@@ -48,7 +48,9 @@ def main() -> None:
             question = input("> ").strip()
         else:
             answer = input("clarification> ").strip()
-            question = f"{pending_prompt}\nClarification: {answer}"
+            if answer.lower() in EXIT_WORDS:
+                break
+            question = answer
             pending_prompt = None
 
         if not question:

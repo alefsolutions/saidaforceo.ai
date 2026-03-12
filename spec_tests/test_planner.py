@@ -116,6 +116,20 @@ def test_planner_passes_aggregation_into_group_breakdown() -> None:
     assert group_step.parameters["aggregation"] == "max"
 
 
+def test_planner_builds_distinct_values_plan_for_dimension_listing() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Give me a list of all regions",
+        task_type_hint="descriptive",
+        target="region",
+        options={"distinct_values": True},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["distinct_values"]
+
+
 def test_planner_rejects_invalid_filter_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

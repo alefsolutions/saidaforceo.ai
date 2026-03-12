@@ -211,6 +211,16 @@ def test_normalizer_sets_options_payload() -> None:
     assert request.options["nlp_backend"] == "rules"
 
 
+def test_normalizer_detects_distinct_value_listing_for_dimension_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("Give me a list of all segments", build_dataset(), build_profile(), None)
+
+    assert warnings == []
+    assert request.target == "segment"
+    assert request.options["distinct_values"] is True
+
+
 _NORMALIZER_QUESTION_CASES = [
     (
         f"Show revenue by region for West in march case {index}",

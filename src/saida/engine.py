@@ -118,6 +118,14 @@ class Saida:
                     )
                     metrics.extend(step_metrics)
                     tables.extend(step_tables)
+                elif step.action == "distinct_values":
+                    tables.append(
+                        self.duckdb.distinct_values(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("filters"),
+                        )
+                    )
                 elif step.action == "aggregate_value":
                     step_metrics = self.duckdb.aggregate_value(
                         dataset.data,

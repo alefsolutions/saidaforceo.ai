@@ -29,6 +29,16 @@ class ResultSummarizer:
         if row_count is not None:
             parts.append(f"The dataset contains {row_count} rows.")
 
+        distinct_values_part = self._describe_distinct_values(tables, request)
+        if distinct_values_part:
+            parts.append(distinct_values_part)
+            context_note = self._describe_context_note(context)
+            if context_note:
+                parts.append(context_note)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         grouped_aggregate_part = self._describe_grouped_aggregation(tables, request)
         if grouped_aggregate_part:
             parts.append(grouped_aggregate_part)
@@ -133,6 +143,25 @@ class ResultSummarizer:
         if request.aggregation == "count":
             return f"Count of {label} is {int(metric_value)}."
         return None
+
+    def _describe_distinct_values(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if not request.options.get("distinct_values") or not request.target:
+            return None
+        distinct_table = self._table(tables, "distinct_values")
+        if distinct_table is None or distinct_table.dataframe.empty:
+            return None
+
+        value_column = request.target
+        values = [str(value) for value in distinct_table.dataframe[value_column].head(10).tolist()]
+        if not values:
+            return None
+
+        label = request.target.replace("_", " ")
+        summary = f"Available {label} values: {', '.join(values)}."
+        remaining_values = len(distinct_table.dataframe) - len(values)
+        if remaining_values > 0:
+            summary += f" {remaining_values} more value{'s' if remaining_values != 1 else ''} are available in distinct_values."
+        return summary
 
     def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         if not request.target or not request.group_by or not request.aggregation:

@@ -394,6 +394,23 @@ def test_analyze_prioritizes_grouped_total_answer_for_grouped_aggregation_prompt
     assert any(table.name == "group_breakdown" for table in result.tables)
 
 
+def test_analyze_lists_distinct_dimension_values_for_list_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "revenue": [100.0, 120.0, 90.0, 80.0],
+            "segment": ["Retail", "Wholesale", "Retail", "Online"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Give me a list of all segments")
+
+    assert "Available segment values: Online, Retail, Wholesale." in result.summary
+    assert any(table.name == "distinct_values" for table in result.tables)
+    assert result.plan.steps[0].action == "distinct_values"
+
+
 def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     database_path = tmp_path / "sales.db"
     connection = sqlite3.connect(database_path)

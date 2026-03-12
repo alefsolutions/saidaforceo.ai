@@ -26,6 +26,18 @@ class AnalysisPlanner:
             warnings.append("No target was provided; using the first measure column.")
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
+            if request.options.get("distinct_values") and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="distinct_values",
+                        tool_family="duckdb",
+                        action="distinct_values",
+                        parameters={"target": request.target, "filters": request.filters},
+                        description="List the distinct values for the requested dimension.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.target and request.aggregation:
                 steps.append(
                     PlanStep(
@@ -321,6 +333,8 @@ class AnalysisPlanner:
 
         if request.target is not None and request.target not in profile_columns:
             raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
+        if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
+            raise PlanningError("Distinct value listing requires a dimension target.")
 
         if request.group_by:
             invalid_groups = [column for column in request.group_by if column not in profile_columns]
@@ -362,4 +376,6 @@ class AnalysisPlanner:
             rationale += " Semantic metric definitions were available."
         if request.filters:
             rationale += f" Filters were detected for: {', '.join(request.filters)}."
+        if request.options.get("distinct_values"):
+            rationale += " A distinct value listing was requested."
         return rationale

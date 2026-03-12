@@ -47,6 +47,22 @@ def test_duckdb_period_and_contribution_breakdown() -> None:
     assert "delta" in contribution_table.dataframe.columns
 
 
+def test_duckdb_distinct_values_lists_dimension_members() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "segment": ["Retail", "Wholesale", "Retail", "Online"],
+            "revenue": [100.0, 80.0, 60.0, 40.0],
+        }
+    )
+
+    distinct_table = engine.distinct_values(dataframe, target="segment")
+
+    assert distinct_table.name == "distinct_values"
+    assert list(distinct_table.dataframe["segment"]) == ["Online", "Retail", "Wholesale"]
+    assert list(distinct_table.dataframe["row_count"]) == [1, 2, 1]
+
+
 def test_duckdb_ranked_breakdown_respects_limit() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()

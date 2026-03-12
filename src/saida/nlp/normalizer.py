@@ -12,6 +12,14 @@ from saida.llm import IntentProposal
 from saida.schemas import AnalysisRequest, Dataset, DatasetProfile, SourceContext
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
+DISTINCT_VALUE_KEYWORDS = {
+    "list",
+    "list of all",
+    "list all",
+    "all values",
+    "available values",
+    "give me all",
+}
 AGGREGATION_KEYWORDS = {
     "mean": {"average", "mean", "avg"},
     "max": {"highest", "maximum", "max", "top", "largest", "best"},
@@ -66,6 +74,7 @@ class RequestNormalizer:
             target = profile.measure_columns[0]
         if target is None and not profile.measure_columns:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+        distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
             question=question,
@@ -76,7 +85,11 @@ class RequestNormalizer:
             filters=filters,
             group_by=group_by,
             time_reference=time_reference,
-            options={"dataset": dataset.name, "nlp_backend": "transformer+rules" if self.config.enable_transformers else "rules"},
+            options={
+                "dataset": dataset.name,
+                "nlp_backend": "transformer+rules" if self.config.enable_transformers else "rules",
+                "distinct_values": distinct_values,
+            },
         )
         return request, warnings
 
@@ -121,6 +134,7 @@ class RequestNormalizer:
             target = profile.measure_columns[0]
         if target is None and not profile.measure_columns:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+        distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
             question=question,
@@ -135,6 +149,7 @@ class RequestNormalizer:
                 "dataset": dataset.name,
                 "nlp_backend": "llm+validation",
                 "llm_status": proposal.status,
+                "distinct_values": distinct_values,
             },
         )
         return request, warnings
@@ -178,15 +193,22 @@ class RequestNormalizer:
     def _resolve_target(self, question: str, profile: DatasetProfile, context: SourceContext | None) -> str | None:
         lowered = question.lower()
         measure_aliases: dict[str, str] = {}
+        dimension_aliases: dict[str, str] = {}
         if context:
             for metric_name in context.metric_definitions:
                 measure_aliases[metric_name.lower()] = metric_name
         for column_name in profile.measure_columns:
             measure_aliases[column_name.lower()] = column_name
+        for column_name in profile.dimension_columns:
+            dimension_aliases[column_name.lower()] = column_name
 
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
                 return resolved_name
+        if self._looks_like_distinct_values_request(question):
+            for alias, resolved_name in dimension_aliases.items():
+                if alias in lowered:
+                    return resolved_name
         return None
 
     def _extract_aggregation(self, question: str) -> str | None:
@@ -291,6 +313,24 @@ class RequestNormalizer:
         if aggregation in AGGREGATION_KEYWORDS:
             return aggregation
         return None
+
+    def _looks_like_distinct_values_request(self, question: str) -> bool:
+        lowered = question.lower()
+        return any(keyword in lowered for keyword in DISTINCT_VALUE_KEYWORDS)
+
+    def _should_list_distinct_values(
+        self,
+        question: str,
+        target: str | None,
+        profile: DatasetProfile,
+    ) -> bool:
+        if not target:
+            return False
+        if target not in profile.dimension_columns:
+            return False
+        if self._extract_aggregation(question):
+            return False
+        return self._looks_like_distinct_values_request(question)
 
     def _resolve_candidate_column(
         self,

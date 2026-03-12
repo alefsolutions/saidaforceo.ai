@@ -34,7 +34,7 @@ class DuckDBComputeEngine:
             Metric(name="row_count", value=int(len(prepared)), description="Number of rows in the dataset."),
             Metric(name="column_count", value=int(len(prepared.columns)), description="Number of columns in the dataset."),
         ]
-        if target:
+        if target and pd.api.types.is_numeric_dtype(prepared[target]):
             try:
                 connection = duckdb.connect()
                 connection.register("source_df", self._prepare_for_duckdb(prepared))
@@ -47,6 +47,36 @@ class DuckDBComputeEngine:
         preview = prepared.head(10).copy()
         tables = [TableArtifact(name="dataset_preview", description="First 10 rows of the dataset.", dataframe=preview)]
         return metrics, tables
+
+    def distinct_values(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """List distinct values for a dimension column with row counts."""
+        prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, [target])
+        query = f"""
+            select
+                "{target}" as "{target}",
+                count(*) as row_count
+            from source_df
+            group by "{target}"
+            order by "{target}"
+        """
+        try:
+            connection = duckdb.connect()
+            connection.register("source_df", self._prepare_for_duckdb(prepared))
+            values = connection.execute(query).fetchdf()
+            connection.close()
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError(f"Failed to compute distinct values for target '{target}'.") from exc
+        return TableArtifact(
+            name="distinct_values",
+            description=f"Distinct values for {target}.",
+            dataframe=values,
+        )
 
     def aggregate_value(
         self,
