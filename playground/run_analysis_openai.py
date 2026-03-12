@@ -17,6 +17,8 @@ from saida.config import LlmConfig, SaidaConfig
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
+DEFAULT_DATASET_PATH = PROJECT_ROOT / "examples" / "datasets" / "support_tickets_500.csv"
+DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "contexts" / "support_tickets_500.md"
 
 
 def _show_loader(stop_event: threading.Event) -> None:
@@ -36,8 +38,8 @@ def main() -> None:
         raise RuntimeError("OPENAI_API_KEY is not set.")
 
     dataset = CSVAdapter(
-        PROJECT_ROOT / "examples" / "sales.csv",
-        context_path=PROJECT_ROOT / "examples" / "sales_context.md",
+        DEFAULT_DATASET_PATH,
+        context_path=DEFAULT_CONTEXT_PATH,
     ).load()
 
     config = SaidaConfig(
@@ -52,6 +54,7 @@ def main() -> None:
 
     engine = Saida(config=config)
     print("SAIDA OpenAI playground")
+    print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
 
     pending_prompt: str | None = None
