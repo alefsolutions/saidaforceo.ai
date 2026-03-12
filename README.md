@@ -78,6 +78,22 @@ $env:PYTHONPATH="src"
 python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March by region?"
 ```
 
+For richer local inspection, the CLI also supports JSON output and optional plan/trace printing:
+
+```bash
+$env:PYTHONPATH="src"
+python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March?" --show-plan --show-trace
+python -m saida.cli.main profile --csv examples/sales.csv --json
+```
+
+The repo also includes runnable examples:
+
+```bash
+$env:PYTHONPATH="src"
+python examples/run_profile.py
+python examples/run_analysis.py
+```
+
 ---
 
 # Key Capabilities
