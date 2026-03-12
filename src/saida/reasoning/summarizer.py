@@ -26,8 +26,29 @@ class ResultSummarizer:
         direct_aggregate_summary = bool(plan.task_type == "descriptive" and request.aggregation)
 
         row_count = self._metric_value(metrics, "row_count")
-        if row_count is not None:
+        if row_count is not None and request.intent_name != "row_count":
             parts.append(f"The dataset contains {row_count} rows.")
+
+        metadata_part = self._describe_metadata_inventory(tables, request)
+        if metadata_part:
+            parts.append(metadata_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
+        row_count_part = self._describe_row_count_only(metrics, request)
+        if row_count_part:
+            parts.append(row_count_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
+        representation_part = self._describe_representation_ranking(tables, request)
+        if representation_part:
+            parts.append(representation_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
 
         distinct_values_part = self._describe_distinct_values(tables, request)
         if distinct_values_part:
@@ -162,6 +183,43 @@ class ResultSummarizer:
         if remaining_values > 0:
             summary += f" {remaining_values} more value{'s' if remaining_values != 1 else ''} are available in distinct_values."
         return summary
+
+    def _describe_representation_ranking(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "representation_ranking" or not request.target:
+            return None
+        count_table = self._table(tables, "group_row_counts")
+        if count_table is None or count_table.dataframe.empty:
+            return None
+        row = count_table.dataframe.iloc[0]
+        row_label = self._row_label(row, exclude={"row_count"})
+        row_count = int(row.get("row_count", 0) or 0)
+        if request.options.get("ranking_direction") == "asc":
+            return f"The least represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
+        return f"The most represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
+
+    def _describe_row_count_only(self, metrics: list[Metric], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "row_count":
+            return None
+        row_count = self._metric_value(metrics, "row_count")
+        if row_count is None:
+            return None
+        return f"The dataset contains {int(row_count)} rows."
+
+    def _describe_metadata_inventory(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        inventory_mapping = {
+            "column_inventory": ("column_inventory", "column_name", "Available columns"),
+            "measure_inventory": ("measure_inventory", "measure_column", "Available measure columns"),
+            "dimension_inventory": ("dimension_inventory", "dimension_column", "Available dimension columns"),
+            "time_column_inventory": ("time_column_inventory", "time_column", "Available time columns"),
+        }
+        if request.intent_name not in inventory_mapping:
+            return None
+        table_name, column_name, prefix = inventory_mapping[request.intent_name]
+        inventory_table = self._table(tables, table_name)
+        if inventory_table is None or inventory_table.dataframe.empty:
+            return f"{prefix}: none."
+        values = [str(value) for value in inventory_table.dataframe[column_name].tolist()]
+        return f"{prefix}: {', '.join(values)}."
 
     def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         if not request.target or not request.group_by or not request.aggregation:

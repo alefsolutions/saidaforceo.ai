@@ -20,6 +20,9 @@ DISTINCT_VALUE_KEYWORDS = {
     "available values",
     "give me all",
 }
+ROW_COUNT_KEYWORDS = {"how many rows", "number of rows", "data rows", "row count", "count rows"}
+REPRESENTATION_LOW_KEYWORDS = {"least represented", "fewest rows", "least number of rows", "smallest count"}
+REPRESENTATION_HIGH_KEYWORDS = {"most represented", "most rows", "highest count", "largest count"}
 AGGREGATION_KEYWORDS = {
     "mean": {"average", "mean", "avg"},
     "max": {"highest", "maximum", "max", "top", "largest", "best"},
@@ -58,26 +61,34 @@ class RequestNormalizer:
             raise ValidationError("Dataset profile contains no columns.")
 
         warnings: list[str] = []
+        intent_name = self._detect_intent_name(question, profile)
         task_type_hint = self._classify_task(question)
         if self.config.enable_transformers and self.config.zero_shot_model:
             task_type_hint = self._maybe_refine_task_with_transformers(question, task_type_hint, warnings)
 
-        target = self._resolve_target(question, profile, context)
+        target = self._resolve_target(question, profile, context, intent_name)
         aggregation = self._extract_aggregation(question)
         time_reference = self._extract_time_reference(question)
         horizon = self._extract_horizon(question)
         group_by = self._extract_group_by(question, profile)
         filters = self._extract_filters(question, profile, context)
+        options = self._build_request_options(dataset.name, intent_name)
 
-        if target is None and profile.measure_columns:
+        if intent_name == "representation_ranking" and target is not None:
+            group_by = [target]
+            aggregation = "count"
+            options["ranking_direction"] = self._representation_direction(question)
+
+        if target is None and profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns:
+        if target is None and not profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
             question=question,
+            intent_name=intent_name,
             task_type_hint=task_type_hint,
             target=target,
             aggregation=aggregation,
@@ -86,7 +97,7 @@ class RequestNormalizer:
             group_by=group_by,
             time_reference=time_reference,
             options={
-                "dataset": dataset.name,
+                **options,
                 "nlp_backend": "transformer+rules" if self.config.enable_transformers else "rules",
                 "distinct_values": distinct_values,
             },
@@ -105,8 +116,9 @@ class RequestNormalizer:
         self._validate_inputs(question, dataset, profile)
         warnings = list(proposal.warnings)
 
+        rule_intent_name = self._detect_intent_name(question, profile)
         rule_task_type = self._classify_task(question)
-        rule_target = self._resolve_target(question, profile, context)
+        rule_target = self._resolve_target(question, profile, context, rule_intent_name)
         rule_aggregation = self._extract_aggregation(question)
         rule_time_reference = self._extract_time_reference(question)
         rule_horizon = self._extract_horizon(question)
@@ -129,15 +141,22 @@ class RequestNormalizer:
             time_reference = rule_time_reference
         horizon = proposal.horizon if proposal.horizon and proposal.horizon > 0 else rule_horizon
 
-        if target is None and profile.measure_columns:
+        options = self._build_request_options(dataset.name, rule_intent_name)
+        if rule_intent_name == "representation_ranking" and target is not None:
+            group_by = [target]
+            aggregation = "count"
+            options["ranking_direction"] = self._representation_direction(question)
+
+        if target is None and profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns:
+        if target is None and not profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
             question=question,
+            intent_name=rule_intent_name,
             task_type_hint=task_type_hint,
             target=target,
             aggregation=aggregation,
@@ -146,7 +165,7 @@ class RequestNormalizer:
             group_by=group_by,
             time_reference=time_reference,
             options={
-                "dataset": dataset.name,
+                **options,
                 "nlp_backend": "llm+validation",
                 "llm_status": proposal.status,
                 "distinct_values": distinct_values,
@@ -190,7 +209,13 @@ class RequestNormalizer:
             return current_label
         return label
 
-    def _resolve_target(self, question: str, profile: DatasetProfile, context: SourceContext | None) -> str | None:
+    def _resolve_target(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        intent_name: str | None,
+    ) -> str | None:
         lowered = question.lower()
         measure_aliases: dict[str, str] = {}
         dimension_aliases: dict[str, str] = {}
@@ -205,7 +230,7 @@ class RequestNormalizer:
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
                 return resolved_name
-        if self._looks_like_distinct_values_request(question):
+        if intent_name in {"distinct_values", "representation_ranking"}:
             for alias, resolved_name in dimension_aliases.items():
                 if alias in lowered:
                     return resolved_name
@@ -314,6 +339,37 @@ class RequestNormalizer:
             return aggregation
         return None
 
+    def _detect_intent_name(self, question: str, profile: DatasetProfile) -> str | None:
+        lowered = question.lower()
+        if "columns" in lowered and any(keyword in lowered for keyword in {"available", "what are", "which", "show"}):
+            return "column_inventory"
+        if any(keyword in lowered for keyword in {"measure columns", "metrics available", "available metrics"}):
+            return "measure_inventory"
+        if any(keyword in lowered for keyword in {"dimension columns", "available dimensions", "grouping columns"}):
+            return "dimension_inventory"
+        if any(keyword in lowered for keyword in {"time columns", "date columns", "datetime columns"}):
+            return "time_column_inventory"
+        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
+            return "row_count"
+        if self._looks_like_distinct_values_request(question):
+            return "distinct_values"
+        if self._looks_like_representation_request(question, profile):
+            return "representation_ranking"
+        return None
+
+    def _looks_like_representation_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        has_representation_language = any(keyword in lowered for keyword in REPRESENTATION_LOW_KEYWORDS | REPRESENTATION_HIGH_KEYWORDS)
+        if not has_representation_language:
+            return False
+        return any(column.lower() in lowered for column in profile.dimension_columns)
+
+    def _representation_direction(self, question: str) -> str:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in REPRESENTATION_LOW_KEYWORDS):
+            return "asc"
+        return "desc"
+
     def _looks_like_distinct_values_request(self, question: str) -> bool:
         lowered = question.lower()
         return any(keyword in lowered for keyword in DISTINCT_VALUE_KEYWORDS)
@@ -331,6 +387,12 @@ class RequestNormalizer:
         if self._extract_aggregation(question):
             return False
         return self._looks_like_distinct_values_request(question)
+
+    def _build_request_options(self, dataset_name: str, intent_name: str | None) -> dict[str, object]:
+        return {
+            "dataset": dataset_name,
+            "intent_name": intent_name,
+        }
 
     def _resolve_candidate_column(
         self,

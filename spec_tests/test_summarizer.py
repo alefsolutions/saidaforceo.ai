@@ -370,6 +370,78 @@ def test_summarizer_describes_distinct_value_listing() -> None:
     assert "Available segment values: Enterprise, SMB." in summary
 
 
+def test_summarizer_describes_row_count_intent() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(question="How many rows?", intent_name="row_count", task_type_hint="descriptive")
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[Metric(name="row_count", value=8)],
+        tables=[],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert summary == "Completed a descriptive analysis for the dataset on sales. The dataset contains 8 rows."
+
+
+def test_summarizer_describes_representation_ranking() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Which segment is least represented?",
+        intent_name="representation_ranking",
+        task_type_hint="descriptive",
+        target="segment",
+        options={"ranking_direction": "asc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="group_row_counts",
+                description="Counts.",
+                dataframe=pd.DataFrame({"segment": ["Online", "Wholesale"], "row_count": [1, 2]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "The least represented segment is segment=Online with 1 rows." in summary
+
+
+def test_summarizer_describes_column_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(question="What are the columns?", intent_name="column_inventory", task_type_hint="descriptive")
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="column_inventory",
+                description="Columns.",
+                dataframe=pd.DataFrame({"column_name": ["revenue", "region", "posted_at"]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Available columns: revenue, region, posted_at." in summary
+
+
 import pytest
 
 

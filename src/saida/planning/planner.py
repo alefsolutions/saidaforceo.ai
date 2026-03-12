@@ -21,11 +21,58 @@ class AnalysisPlanner:
         warnings: list[str] = []
         steps: list[PlanStep] = []
 
-        if request.target is None and profile.measure_columns:
+        if request.target is None and profile.measure_columns and request.intent_name not in {
+            "row_count",
+            "column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+        }:
             request.target = profile.measure_columns[0]
             warnings.append("No target was provided; using the first measure column.")
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
+            if request.intent_name in {"column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+                steps.append(
+                    PlanStep(
+                        step_id=request.intent_name,
+                        tool_family="metadata",
+                        action=request.intent_name,
+                        parameters={},
+                        description="Return dataset inventory information for the requested metadata view.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "row_count":
+                steps.append(
+                    PlanStep(
+                        step_id="row_count",
+                        tool_family="duckdb",
+                        action="row_count",
+                        parameters={"filters": request.filters},
+                        description="Count the number of rows in the requested dataset slice.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "representation_ranking" and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="count_rows_by_group",
+                        tool_family="duckdb",
+                        action="count_rows_by_group",
+                        parameters={
+                            "group_by": [request.target],
+                            "filters": request.filters,
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                            "limit": 5,
+                        },
+                        description="Count rows by group and rank the representation of the requested dimension.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.options.get("distinct_values") and request.target:
                 steps.append(
                     PlanStep(
@@ -335,6 +382,8 @@ class AnalysisPlanner:
             raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
         if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
             raise PlanningError("Distinct value listing requires a dimension target.")
+        if request.intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
+            raise PlanningError("Representation ranking requires a dimension target.")
 
         if request.group_by:
             invalid_groups = [column for column in request.group_by if column not in profile_columns]
@@ -378,4 +427,6 @@ class AnalysisPlanner:
             rationale += f" Filters were detected for: {', '.join(request.filters)}."
         if request.options.get("distinct_values"):
             rationale += " A distinct value listing was requested."
+        if request.intent_name:
+            rationale += f" Intent: {request.intent_name}."
         return rationale

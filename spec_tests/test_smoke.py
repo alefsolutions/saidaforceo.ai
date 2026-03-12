@@ -411,6 +411,57 @@ def test_analyze_lists_distinct_dimension_values_for_list_prompt() -> None:
     assert result.plan.steps[0].action == "distinct_values"
 
 
+def test_analyze_counts_rows_for_row_count_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "revenue": [100.0, 120.0, 90.0],
+            "segment": ["Retail", "Wholesale", "Retail"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many data rows do we have?")
+
+    assert result.summary.endswith("The dataset contains 3 rows.")
+    assert result.response["intent"]["intent_name"] == "row_count"
+    assert any(metric.name == "row_count" for metric in result.metrics)
+
+
+def test_analyze_identifies_least_represented_group() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "revenue": [100.0, 120.0, 90.0, 80.0],
+            "segment": ["Retail", "Retail", "Wholesale", "Online"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which segment is the least represented in sales data?")
+
+    assert "The least represented segment is segment=Online with 1 rows." in result.summary
+    assert result.response["intent"]["intent_name"] == "representation_ranking"
+    assert any(table.name == "group_row_counts" for table in result.tables)
+
+
+def test_analyze_returns_column_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01"],
+            "revenue": [100.0],
+            "segment": ["Retail"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What are the columns in the sales data?")
+
+    assert "Available columns: posted_at, revenue, segment." in result.summary
+    assert result.response["intent"]["intent_name"] == "column_inventory"
+    assert any(table.name == "column_inventory" for table in result.tables)
+
+
 def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     database_path = tmp_path / "sales.db"
     connection = sqlite3.connect(database_path)

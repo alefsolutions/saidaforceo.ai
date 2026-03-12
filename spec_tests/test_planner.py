@@ -130,6 +130,47 @@ def test_planner_builds_distinct_values_plan_for_dimension_listing() -> None:
     assert [step.action for step in plan.steps] == ["distinct_values"]
 
 
+def test_planner_builds_row_count_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="How many rows do we have?",
+        intent_name="row_count",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["row_count"]
+
+
+def test_planner_builds_representation_ranking_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which region is least represented?",
+        intent_name="representation_ranking",
+        task_type_hint="descriptive",
+        target="region",
+        options={"ranking_direction": "asc"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["count_rows_by_group"]
+
+
+def test_planner_builds_column_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What are the columns?",
+        intent_name="column_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["column_inventory"]
+
+
 def test_planner_rejects_invalid_filter_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

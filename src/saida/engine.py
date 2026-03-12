@@ -118,6 +118,23 @@ class Saida:
                     )
                     metrics.extend(step_metrics)
                     tables.extend(step_tables)
+                elif step.action == "row_count":
+                    metrics.extend(
+                        self.duckdb.row_count(
+                            dataset.data,
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "count_rows_by_group":
+                    tables.append(
+                        self.duckdb.count_rows_by_group(
+                            dataset.data,
+                            step.parameters["group_by"],
+                            step.parameters.get("filters"),
+                            step.parameters.get("ascending", False),
+                            step.parameters.get("limit"),
+                        )
+                    )
                 elif step.action == "distinct_values":
                     tables.append(
                         self.duckdb.distinct_values(
@@ -250,6 +267,8 @@ class Saida:
                     )
                     if comparison_table is not None:
                         tables.append(comparison_table)
+            elif step.tool_family == "metadata":
+                tables.append(self._metadata_table(step.action, profile))
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         deterministic_summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
@@ -324,6 +343,16 @@ class Saida:
             return request, warnings, self._trace("llm", "prompt interpretation skipped", {"fallback": "rules"})
 
         if proposal.status in {"clarify", "refuse"}:
+            fallback_request, fallback_warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            if self._is_confident_deterministic_request(fallback_request, fallback_warnings):
+                fallback_warnings.append(
+                    "Optional LLM prompting requested clarification, but deterministic request normalization found a valid intent."
+                )
+                return (
+                    fallback_request,
+                    fallback_warnings,
+                    self._trace("llm", "clarification overridden by deterministic request normalization", {"status": proposal.status}),
+                )
             request = AnalysisRequest(
                 question=question,
                 task_type_hint=None,
@@ -402,6 +431,19 @@ class Saida:
             parts.append(f"caveats={context.caveats}")
         return "; ".join(parts) if parts else None
 
+    def _is_confident_deterministic_request(
+        self,
+        request: AnalysisRequest,
+        warnings: list[str],
+    ) -> bool:
+        if warnings:
+            return False
+        if request.intent_name is not None:
+            return True
+        if request.aggregation or request.group_by or request.time_reference:
+            return True
+        return False
+
     def _validate_dataset(self, dataset: Dataset) -> None:
         if not isinstance(dataset.data, pd.DataFrame):
             raise ValidationError("Dataset.data must be a pandas DataFrame.")
@@ -413,3 +455,18 @@ class Saida:
         if duplicate_columns:
             joined = ", ".join(str(column_name) for column_name in duplicate_columns)
             raise ValidationError(f"Dataset contains duplicate column names: {joined}")
+
+    def _metadata_table(self, action: str, profile: DatasetProfile) -> TableArtifact:
+        if action == "column_inventory":
+            dataframe = pd.DataFrame({"column_name": [column.name for column in profile.columns]})
+            return TableArtifact(name="column_inventory", description="Available dataset columns.", dataframe=dataframe)
+        if action == "measure_inventory":
+            dataframe = pd.DataFrame({"measure_column": list(profile.measure_columns)})
+            return TableArtifact(name="measure_inventory", description="Detected measure columns.", dataframe=dataframe)
+        if action == "dimension_inventory":
+            dataframe = pd.DataFrame({"dimension_column": list(profile.dimension_columns)})
+            return TableArtifact(name="dimension_inventory", description="Detected dimension columns.", dataframe=dataframe)
+        if action == "time_column_inventory":
+            dataframe = pd.DataFrame({"time_column": list(profile.time_columns)})
+            return TableArtifact(name="time_column_inventory", description="Detected time columns.", dataframe=dataframe)
+        raise ValidationError(f"Unsupported metadata action: {action}")

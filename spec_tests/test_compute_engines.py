@@ -63,6 +63,26 @@ def test_duckdb_distinct_values_lists_dimension_members() -> None:
     assert list(distinct_table.dataframe["row_count"]) == [1, 2, 1]
 
 
+def test_duckdb_row_count_counts_filtered_rows() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"region": ["West", "East", "West"], "revenue": [1, 2, 3]})
+
+    metrics = engine.row_count(dataframe, filters={"region": "West"})
+
+    assert metrics[0].name == "row_count"
+    assert metrics[0].value == 2
+
+
+def test_duckdb_count_rows_by_group_supports_ranking() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"segment": ["Retail", "Retail", "Wholesale", "Online"], "revenue": [1, 2, 3, 4]})
+
+    table = engine.count_rows_by_group(dataframe, group_by=["segment"], ascending=True, limit=2)
+
+    assert list(table.dataframe["segment"]) == ["Online", "Wholesale"]
+    assert list(table.dataframe["row_count"]) == [1, 1]
+
+
 def test_duckdb_ranked_breakdown_respects_limit() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()

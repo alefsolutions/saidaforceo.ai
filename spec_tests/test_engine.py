@@ -51,6 +51,26 @@ class FakeLlmProvider(BaseLlmProvider):
         )
 
 
+class ClarifyingLlmProvider(BaseLlmProvider):
+    """Provider that over-clarifies so deterministic fallback can be tested."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(status="clarify", message="Please clarify.", warnings=["llm clarification"])
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
 def test_engine_load_context_parses_markdown() -> None:
     engine = Saida()
 
@@ -213,6 +233,28 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     assert result.metrics == []
     assert result.response["status"] == "refuse"
     assert result.response["outputs"]["summary"] == "We are not able to provide this information at this time."
+
+
+def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear() -> None:
+    engine = Saida(llm_provider=ClarifyingLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+                "revenue": [100.0, 90.0, 80.0],
+                "segment": ["Retail", "Wholesale", "Retail"],
+            }
+        ),
+    )
+
+    result = engine.analyze(dataset, "Which segment is the least represented?")
+
+    assert result.plan.task_type == "descriptive"
+    assert result.response["status"] == "ok"
+    assert result.response["intent"]["intent_name"] == "representation_ranking"
 
 
 def test_engine_analysis_response_contract_records_intent_and_operations() -> None:

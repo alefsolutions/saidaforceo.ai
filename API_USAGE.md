@@ -49,6 +49,14 @@ print(result.summary)
 # Available segment values: Enterprise, SMB.
 ```
 
+Other deterministic intent examples:
+
+```python
+engine.analyze(dataset=dataset, question="How many data rows do we have?")
+engine.analyze(dataset=dataset, question="Which segment is the least represented?")
+engine.analyze(dataset=dataset, question="What are the columns in the sales data?")
+```
+
 Grouped aggregation prompts are summarized directly from grouped results, for example:
 
 ```python

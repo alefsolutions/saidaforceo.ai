@@ -109,6 +109,10 @@ class OllamaLlmProvider(BaseLlmProvider):
             'Allowed status values: "ready", "clarify", "refuse".\n'
             "Do not invent columns.\n"
             "If uncertain, use clarify or refuse.\n"
+            "Supported deterministic intents include row counts, grouped row counts for most/least represented groups, "
+            "column inventory, distinct value listing, scalar aggregations, grouped aggregations, trends, and period comparisons.\n"
+            "For prompts about least or most represented groups, prefer a grouped row-count interpretation when a dimension column is present.\n"
+            "For prompts about available columns, return a ready status instead of asking for clarification.\n"
             "Return keys: status, task_type_hint, target, aggregation, horizon, filters, group_by, time_reference, message, warnings.\n"
             f"Dataset: {dataset_name}\n"
             f"Profile summary: {profile_summary}\n"

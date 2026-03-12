@@ -119,6 +119,9 @@ python examples/run_analysis.py
 - metric and target extraction
 - aggregation intent extraction for requests like average, highest, lowest, total, and count
 - direct dimension-value listing for prompts like "list all segments"
+- row-count questions like "how many rows do we have"
+- representation ranking questions like "which segment is least represented"
+- metadata inventory questions like "what columns are available"
 - date and period extraction
 - filter and grouping hint extraction
 - structured `AnalysisRequest` generation
@@ -129,6 +132,8 @@ python examples/run_analysis.py
 - descriptive analytics
 - deterministic aggregation queries such as sum, average, maximum, minimum, and count
 - direct listing of distinct dimension values
+- row counts and grouped row-count ranking
+- dataset metadata inventory such as columns, measures, dimensions, and time columns
 - segmentation
 - anomaly detection
 - correlation analysis

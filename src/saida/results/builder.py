@@ -144,6 +144,7 @@ class ResultBuilder:
                 "column_count": profile.column_count,
             },
             "intent": {
+                "intent_name": request.intent_name,
                 "task_type": plan.task_type,
                 "target": request.target,
                 "aggregation": request.aggregation,

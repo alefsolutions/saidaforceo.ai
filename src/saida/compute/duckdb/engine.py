@@ -48,6 +48,15 @@ class DuckDBComputeEngine:
         tables = [TableArtifact(name="dataset_preview", description="First 10 rows of the dataset.", dataframe=preview)]
         return metrics, tables
 
+    def row_count(
+        self,
+        dataframe: pd.DataFrame,
+        filters: dict[str, str] | None = None,
+    ) -> list[Metric]:
+        """Count rows in the dataset or filtered slice."""
+        prepared = self._apply_filters(dataframe, filters)
+        return [Metric(name="row_count", value=int(len(prepared)), description="Number of rows in the dataset slice.")]
+
     def distinct_values(
         self,
         dataframe: pd.DataFrame,
@@ -76,6 +85,42 @@ class DuckDBComputeEngine:
             name="distinct_values",
             description=f"Distinct values for {target}.",
             dataframe=values,
+        )
+
+    def count_rows_by_group(
+        self,
+        dataframe: pd.DataFrame,
+        group_by: list[str],
+        filters: dict[str, str] | None = None,
+        ascending: bool = False,
+        limit: int | None = None,
+    ) -> TableArtifact:
+        """Count rows by group and rank the results."""
+        prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, group_by)
+        group_column_sql = ", ".join(group_by)
+        order_direction = "asc" if ascending else "desc"
+        query = f"""
+            select
+                {group_column_sql},
+                count(*) as row_count
+            from source_df
+            group by {group_column_sql}
+            order by row_count {order_direction}, {group_column_sql}
+        """
+        try:
+            connection = duckdb.connect()
+            connection.register("source_df", self._prepare_for_duckdb(prepared))
+            grouped = connection.execute(query).fetchdf()
+            connection.close()
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError("Failed to count rows by group.") from exc
+        if limit is not None:
+            grouped = grouped.head(limit).copy()
+        return TableArtifact(
+            name="group_row_counts",
+            description="Row counts grouped by dimension.",
+            dataframe=grouped.reset_index(drop=True),
         )
 
     def aggregate_value(

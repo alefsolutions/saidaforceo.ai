@@ -221,6 +221,44 @@ def test_normalizer_detects_distinct_value_listing_for_dimension_prompt() -> Non
     assert request.options["distinct_values"] is True
 
 
+def test_normalizer_detects_row_count_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("How many data rows do we have?", build_dataset(), build_profile(), None)
+
+    assert warnings == []
+    assert request.intent_name == "row_count"
+    assert request.target is None
+
+
+def test_normalizer_detects_representation_ranking_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Which segment is the least represented in sales data?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "representation_ranking"
+    assert request.target == "segment"
+    assert request.group_by == ["segment"]
+    assert request.aggregation == "count"
+    assert request.options["ranking_direction"] == "asc"
+
+
+def test_normalizer_detects_column_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("What are the columns in the sales data?", build_dataset(), build_profile(), None)
+
+    assert warnings == []
+    assert request.intent_name == "column_inventory"
+    assert request.target is None
+
+
 _NORMALIZER_QUESTION_CASES = [
     (
         f"Show revenue by region for West in march case {index}",
