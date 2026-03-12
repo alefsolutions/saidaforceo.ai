@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from saida.planning import AnalysisPlanner
+from saida.exceptions import PlanningError
 from saida.schemas import AnalysisRequest, ColumnProfile, DatasetProfile
 
 
@@ -80,3 +83,44 @@ def test_planner_builds_grouped_descriptive_plan() -> None:
 
     assert "group_breakdown" in actions
     assert "ranked_breakdown" in actions
+
+
+def test_planner_rejects_invalid_filter_columns() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue for missing_region=West",
+        task_type_hint="descriptive",
+        target="revenue",
+        filters={"missing_region": "West"},
+    )
+
+    with pytest.raises(PlanningError, match="Filter columns do not exist"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_time_request_without_time_column() -> None:
+    planner = AnalysisPlanner()
+    profile = build_profile()
+    profile.time_columns = []
+    request = AnalysisRequest(
+        question="Why did revenue drop in March?",
+        task_type_hint="diagnostic",
+        target="revenue",
+        time_reference={"type": "month_name", "value": "march", "month": "3"},
+    )
+
+    with pytest.raises(PlanningError, match="Time-based analysis requires a datetime column"):
+        planner.build_plan(request, profile)
+
+
+def test_planner_rejects_non_month_time_references_for_non_ml_analysis() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue in Q1",
+        task_type_hint="descriptive",
+        target="revenue",
+        time_reference={"type": "quarter", "value": "q1", "quarter": "1"},
+    )
+
+    with pytest.raises(PlanningError, match="Only month-based time references"):
+        planner.build_plan(request, build_profile())

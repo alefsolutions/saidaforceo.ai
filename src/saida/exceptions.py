@@ -5,6 +5,10 @@ class SaidaError(Exception):
     """Base exception for SAIDA."""
 
 
+class ValidationError(SaidaError):
+    """Raised when user input or dataset shape is invalid."""
+
+
 class AdapterError(SaidaError):
     """Raised when data loading fails."""
 

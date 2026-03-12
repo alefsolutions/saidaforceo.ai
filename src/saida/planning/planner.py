@@ -16,6 +16,7 @@ class AnalysisPlanner:
         context: SourceContext | None = None,
     ) -> AnalysisPlan:
         """Build an executable plan from the request and profile."""
+        self._validate_request(request, profile)
         task_type = request.task_type_hint or "descriptive"
         warnings: list[str] = []
         steps: list[PlanStep] = []
@@ -278,6 +279,44 @@ class AnalysisPlanner:
         """Validate a plan before execution."""
         if not plan.steps:
             raise PlanningError("Analysis plan contains no executable steps.")
+
+    def _validate_request(self, request: AnalysisRequest, profile: DatasetProfile) -> None:
+        supported_tasks = {"descriptive", "diagnostic", "statistical", "predictive", "forecasting"}
+        task_type = request.task_type_hint or "descriptive"
+        if task_type not in supported_tasks:
+            raise PlanningError(f"Unsupported analysis task type: {task_type}")
+
+        profile_columns = {column.name for column in profile.columns}
+        if not profile_columns:
+            raise PlanningError("Dataset profile contains no columns.")
+
+        if request.target is not None and request.target not in profile_columns:
+            raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
+
+        if request.group_by:
+            invalid_groups = [column for column in request.group_by if column not in profile_columns]
+            if invalid_groups:
+                joined = ", ".join(invalid_groups)
+                raise PlanningError(f"Grouping columns do not exist in the dataset profile: {joined}")
+
+        if request.filters:
+            invalid_filters = [column for column in request.filters if column not in profile_columns]
+            if invalid_filters:
+                joined = ", ".join(invalid_filters)
+                raise PlanningError(f"Filter columns do not exist in the dataset profile: {joined}")
+
+        if request.time_reference and not profile.time_columns:
+            raise PlanningError("Time-based analysis requires a datetime column.")
+
+        supported_time_reference_types = {"month_name", "quarter", "relative_period"}
+        if request.time_reference and request.time_reference.get("type") not in supported_time_reference_types:
+            raise PlanningError("Unsupported time reference in analysis request.")
+
+        if request.time_reference and request.time_reference.get("type") != "month_name":
+            raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
+
+        if task_type in {"diagnostic", "statistical", "forecasting", "predictive"} and request.target is None:
+            raise PlanningError(f"{task_type.title()} analysis requires a target metric.")
 
     def _build_rationale(self, task_type: str, request: AnalysisRequest, context: SourceContext | None) -> str:
         rationale = f"Selected a {task_type} workflow based on the normalized request."

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from saida.nlp import RequestNormalizer
+from saida.exceptions import ValidationError
 from saida.schemas import ColumnProfile, Dataset, DatasetProfile, SourceContext
 
 
@@ -104,3 +106,19 @@ def test_normalizer_extracts_quarter_and_multiple_group_triggers() -> None:
     assert request.task_type_hint == "descriptive"
     assert request.group_by == ["region", "segment"]
     assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
+
+
+def test_normalizer_rejects_empty_question() -> None:
+    normalizer = RequestNormalizer()
+
+    with pytest.raises(ValidationError, match="question cannot be empty"):
+        normalizer.normalize("", build_dataset(), build_profile(), None)
+
+
+def test_normalizer_rejects_missing_target_when_no_measure_columns_exist() -> None:
+    normalizer = RequestNormalizer()
+    profile = build_profile()
+    profile.measure_columns = []
+
+    with pytest.raises(ValidationError, match="No target metric could be resolved"):
+        normalizer.normalize("Show something interesting", build_dataset(), profile, None)

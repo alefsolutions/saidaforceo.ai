@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 from scipy import stats
 
+from saida.exceptions import ComputeError
 from saida.schemas import TableArtifact
 
 
@@ -44,11 +45,11 @@ class StatsComputeEngine:
     def distribution_summary(self, dataframe: pd.DataFrame, target: str) -> TableArtifact | None:
         """Return simple distribution diagnostics for a numeric target."""
         if target not in dataframe.columns:
-            return None
+            raise ComputeError(f"Target column '{target}' does not exist in the dataset.")
 
         series = pd.to_numeric(dataframe[target], errors="coerce").dropna()
         if series.empty:
-            return None
+            raise ComputeError(f"Target column '{target}' has no numeric values for distribution analysis.")
 
         summary = pd.DataFrame(
             [
@@ -79,6 +80,8 @@ class StatsComputeEngine:
         numeric_columns = dataframe.select_dtypes(include=["number"])
         if numeric_columns.shape[1] < 2:
             return None
+        if target is not None and target not in dataframe.columns:
+            raise ComputeError(f"Target column '{target}' does not exist in the dataset.")
 
         correlations = numeric_columns.corr(numeric_only=True)
         if target and target in correlations.columns:
@@ -102,9 +105,9 @@ class StatsComputeEngine:
     def group_mean_comparison(self, dataframe: pd.DataFrame, target: str, group_column: str) -> TableArtifact | None:
         """Compare the target mean across the first two groups in a dimension column."""
         if target not in dataframe.columns or group_column not in dataframe.columns:
-            return None
+            raise ComputeError(f"Columns '{target}' and '{group_column}' are required for group mean comparison.")
         if group_column == target:
-            return None
+            raise ComputeError("Group comparison column must be different from the target column.")
 
         prepared = dataframe[[target, group_column]].copy()
         prepared[target] = pd.to_numeric(prepared[target], errors="coerce")
@@ -149,7 +152,7 @@ class StatsComputeEngine:
     def time_series_diagnostics(self, dataframe: pd.DataFrame, target: str, time_column: str) -> TableArtifact | None:
         """Return simple diagnostics for a time-ordered target series."""
         if target not in dataframe.columns or time_column not in dataframe.columns:
-            return None
+            raise ComputeError(f"Columns '{target}' and '{time_column}' are required for time-series diagnostics.")
 
         prepared = dataframe[[time_column, target]].copy()
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
@@ -191,7 +194,7 @@ class StatsComputeEngine:
     def anomaly_summary(self, dataframe: pd.DataFrame, target: str, time_column: str | None = None) -> TableArtifact | None:
         """Flag simple z-score anomalies for a target series."""
         if target not in dataframe.columns:
-            return None
+            raise ComputeError(f"Target column '{target}' does not exist in the dataset.")
 
         prepared = dataframe[[target]].copy()
         if time_column and time_column in dataframe.columns:

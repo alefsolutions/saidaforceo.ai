@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from saida.compute.duckdb import DuckDBComputeEngine
 from saida.compute.stats import StatsComputeEngine
+from saida.exceptions import ComputeError
 
 
 def build_dataframe() -> pd.DataFrame:
@@ -100,3 +102,24 @@ def test_stats_engine_returns_correlation_and_anomalies() -> None:
     assert "p_value" in comparison_table.dataframe.columns
     assert diagnostics_table is not None
     assert "lag1_autocorrelation" in diagnostics_table.dataframe.columns
+
+
+def test_duckdb_engine_rejects_invalid_filters() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="Filter column 'missing' does not exist"):
+        engine.dataset_summary(build_dataframe(), target="revenue", filters={"missing": "West"})
+
+
+def test_duckdb_engine_rejects_filters_that_remove_all_rows() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="Filters removed all rows"):
+        engine.dataset_summary(build_dataframe(), target="revenue", filters={"region": "North"})
+
+
+def test_stats_engine_rejects_missing_target_columns() -> None:
+    engine = StatsComputeEngine()
+
+    with pytest.raises(ComputeError, match="Target column 'profit' does not exist"):
+        engine.distribution_summary(build_dataframe(), target="profit")

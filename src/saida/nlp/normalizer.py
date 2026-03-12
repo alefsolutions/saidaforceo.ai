@@ -7,6 +7,7 @@ from calendar import month_name
 from calendar import month_abbr
 
 from saida.config import NlpConfig
+from saida.exceptions import ValidationError
 from saida.schemas import AnalysisRequest, Dataset, DatasetProfile, SourceContext
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
@@ -33,6 +34,13 @@ class RequestNormalizer:
         context: SourceContext | None = None,
     ) -> tuple[AnalysisRequest, list[str]]:
         """Normalize a user question into an AnalysisRequest."""
+        if not question or not question.strip():
+            raise ValidationError("Analysis question cannot be empty.")
+        if dataset.data.empty:
+            raise ValidationError("Cannot analyze an empty dataset.")
+        if profile.column_count == 0:
+            raise ValidationError("Dataset profile contains no columns.")
+
         warnings: list[str] = []
         task_type_hint = self._classify_task(question)
         if self.config.enable_transformers and self.config.zero_shot_model:
@@ -47,6 +55,8 @@ class RequestNormalizer:
         if target is None and profile.measure_columns:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
+        if target is None and not profile.measure_columns:
+            raise ValidationError("No target metric could be resolved from the question or dataset profile.")
 
         request = AnalysisRequest(
             question=question,
@@ -121,7 +131,10 @@ class RequestNormalizer:
 
     def _extract_horizon(self, question: str) -> int | None:
         match = re.search(r"\b(\d+)\s+(?:months|month|periods|steps)\b", question.lower())
-        return int(match.group(1)) if match else None
+        if not match:
+            return None
+        value = int(match.group(1))
+        return value if value > 0 else None
 
     def _extract_group_by(self, question: str, profile: DatasetProfile) -> list[str] | None:
         lowered = question.lower()

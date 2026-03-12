@@ -20,11 +20,13 @@ class DuckDBComputeEngine:
     ) -> tuple[list[Metric], list[TableArtifact]]:
         """Compute top-level metrics for the dataset."""
         prepared = self._apply_filters(dataframe, filters)
+        if target is not None:
+            self._require_columns(prepared, [target])
         metrics = [
             Metric(name="row_count", value=int(len(prepared)), description="Number of rows in the dataset."),
             Metric(name="column_count", value=int(len(prepared.columns)), description="Number of columns in the dataset."),
         ]
-        if target and target in prepared.columns:
+        if target:
             try:
                 connection = duckdb.connect()
                 connection.register("source_df", prepared)
@@ -47,6 +49,7 @@ class DuckDBComputeEngine:
     ) -> TableArtifact:
         """Aggregate a target over monthly time buckets."""
         prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [target, time_column])
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column])
         prepared["period_month"] = prepared[time_column].dt.to_period("M").astype(str)
@@ -85,6 +88,7 @@ class DuckDBComputeEngine:
     ) -> TableArtifact:
         """Compare grouped totals between adjacent periods."""
         prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [target, time_column, *group_by])
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column, target])
         prepared["period_month"] = prepared[time_column].dt.to_period("M")
@@ -166,6 +170,7 @@ class DuckDBComputeEngine:
     ) -> TableArtifact:
         """Aggregate a target by one or more grouping columns."""
         prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, [target, *group_by])
         group_column_sql = ", ".join(group_by)
         query = f"""
             select
@@ -213,6 +218,7 @@ class DuckDBComputeEngine:
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Measure group contribution deltas between adjacent periods when possible."""
+        self._require_columns(dataframe, [target, *group_by])
         if time_column is None or time_reference is None:
             grouped = self.group_breakdown(dataframe, target, group_by, filters).dataframe.copy()
             total = float(grouped["target_total"].sum()) if not grouped.empty else 0.0
@@ -224,6 +230,7 @@ class DuckDBComputeEngine:
             )
 
         prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [time_column])
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column, target])
         prepared["period_month"] = prepared[time_column].dt.to_period("M")
@@ -276,6 +283,7 @@ class DuckDBComputeEngine:
     ) -> TableArtifact:
         """Compare a selected period against the immediately previous comparable period."""
         prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [target, time_column])
         prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column, target])
         prepared["period_month"] = prepared[time_column].dt.to_period("M")
@@ -339,7 +347,7 @@ class DuckDBComputeEngine:
         prepared = dataframe.copy()
         for column_name, expected_value in filters.items():
             if column_name not in prepared.columns:
-                continue
+                raise ComputeError(f"Filter column '{column_name}' does not exist in the dataset.")
 
             series = prepared[column_name]
             if pd.api.types.is_string_dtype(series):
@@ -347,4 +355,12 @@ class DuckDBComputeEngine:
             else:
                 prepared = prepared.loc[series.astype(str) == str(expected_value)]
 
+        if prepared.empty:
+            raise ComputeError("Filters removed all rows from the dataset.")
         return prepared
+
+    def _require_columns(self, dataframe: pd.DataFrame, column_names: list[str]) -> None:
+        missing_columns = [column_name for column_name in column_names if column_name not in dataframe.columns]
+        if missing_columns:
+            joined = ", ".join(missing_columns)
+            raise ComputeError(f"Required columns are missing from the dataset: {joined}")

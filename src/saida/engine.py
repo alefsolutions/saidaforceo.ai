@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pandas as pd
+
 from saida.compute import BaselineMlEngine, DuckDBComputeEngine, StatsComputeEngine
 from saida.config import SaidaConfig
 from saida.context import SourceContextParser
+from saida.exceptions import ValidationError
 from saida.nlp import RequestNormalizer
 from saida.planning import AnalysisPlanner
 from saida.profiling import DatasetProfiler
@@ -43,6 +46,7 @@ class Saida:
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
         """Run an end-to-end deterministic analysis workflow."""
+        self._validate_dataset(dataset)
         trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
         if dataset.context is not None:
             trace.append(self._trace("context", "context attached", {"metric_count": len(dataset.context.metric_definitions)}))
@@ -222,3 +226,15 @@ class Saida:
                 if warning not in merged:
                     merged.append(warning)
         return merged
+
+    def _validate_dataset(self, dataset: Dataset) -> None:
+        if not isinstance(dataset.data, pd.DataFrame):
+            raise ValidationError("Dataset.data must be a pandas DataFrame.")
+        if dataset.data.empty:
+            raise ValidationError("Cannot analyze an empty dataset.")
+        if len(dataset.data.columns) == 0:
+            raise ValidationError("Cannot analyze a dataset with no columns.")
+        duplicate_columns = dataset.data.columns[dataset.data.columns.duplicated()].tolist()
+        if duplicate_columns:
+            joined = ", ".join(str(column_name) for column_name in duplicate_columns)
+            raise ValidationError(f"Dataset contains duplicate column names: {joined}")
