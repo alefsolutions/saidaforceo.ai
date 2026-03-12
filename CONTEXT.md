@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # Semantic Data Context
 
 SAIDA allows datasets to include semantic documentation.
@@ -38,4 +40,4 @@ Context provides:
 This improves NLP request normalization, planning quality, and optional reasoning quality.
 
 It also improves optional LLM interpretation, because LLM proposals are validated against both discovered dataset structure and this semantic context before SAIDA accepts them.
-![SAIDA Banner](assets/github-banner.png)
+

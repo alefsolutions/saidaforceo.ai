@@ -24,3 +24,4 @@ csat_score = post-resolution customer satisfaction score on a five point scale
 - priority
 - channel
 - product_area
+

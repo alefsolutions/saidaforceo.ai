@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # SAIDA Architecture
 
 SAIDA follows a layered architecture:
@@ -177,4 +179,4 @@ Examples:
 - direct SDK integrations
 
 LLM choice should not change SAIDA's compute contracts or typed result schemas.
-![SAIDA Banner](assets/github-banner.png)
+

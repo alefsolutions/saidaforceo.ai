@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # Machine Learning Pipeline
 
 SAIDA defines a future predictive modeling and forecasting surface.
@@ -77,4 +79,4 @@ Planned ML dependencies remain lightweight:
 - statsmodels
 
 Deep learning frameworks are intentionally avoided for V1.
-![SAIDA Banner](assets/github-banner.png)
+

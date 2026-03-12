@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # SAIDA Coding Guidelines
 
 ## Purpose
@@ -491,4 +493,4 @@ If there is a choice between:
 - clarity
 
 choose clarity.
-![SAIDA Banner](assets/github-banner.png)
+

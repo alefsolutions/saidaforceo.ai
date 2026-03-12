@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # SAIDA Library Usage
 
 SAIDA is used as a Python library.
@@ -141,4 +143,4 @@ engine.forecast(...)
 ```
 
 These methods are intentionally not implemented yet in the current repo build.
-![SAIDA Banner](assets/github-banner.png)
+

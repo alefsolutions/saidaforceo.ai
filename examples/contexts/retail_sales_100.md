@@ -21,3 +21,4 @@ discount_pct = percent discount applied to the sale
 - region
 - segment
 - channel
+

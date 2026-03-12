@@ -1,3 +1,5 @@
+![SAIDA Banner](assets/github-banner.png)
+
 # SAIDA File Structure
 
 ```text
@@ -154,4 +156,4 @@ This layer should remain LLM-provider agnostic.
 ## results/
 
 Defines standardized result objects.
-![SAIDA Banner](assets/github-banner.png)
+
