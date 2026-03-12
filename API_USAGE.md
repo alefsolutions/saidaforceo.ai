@@ -37,6 +37,18 @@ result = engine.analyze(
 print(result.summary)
 ```
 
+Grouped aggregation prompts are summarized directly from grouped results, for example:
+
+```python
+result = engine.analyze(
+    dataset=dataset,
+    question="Give me the total revenue by region"
+)
+
+print(result.summary)
+# Total revenue by region: region=West = 397.00; region=East = 350.00.
+```
+
 `result.to_response_dict()` returns the standardized analytical response contract. It includes:
 - original question
 - resolved intent

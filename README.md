@@ -134,6 +134,11 @@ python examples/run_analysis.py
 - grouped period comparison
 - top-mover diagnostics
 
+Aggregation responses are intent-aware:
+- scalar aggregate prompts lead with the scalar answer
+- grouped aggregate prompts lead with grouped totals or grouped averages
+- diagnostic prompts still prioritize explanatory narrative
+
 ### Machine Learning
 
 Not implemented yet in the current repo build.

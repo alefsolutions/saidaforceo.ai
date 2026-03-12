@@ -23,14 +23,27 @@ class ResultSummarizer:
         """Generate a deterministic summary grounded in computed outputs."""
         target_label = request.target.replace("_", " ") if request.target else "the dataset"
         parts = [f"Completed a {plan.task_type} analysis for {target_label} on {profile.dataset_name}."]
+        direct_aggregate_summary = bool(plan.task_type == "descriptive" and request.aggregation)
 
         row_count = self._metric_value(metrics, "row_count")
         if row_count is not None:
             parts.append(f"The dataset contains {row_count} rows.")
 
+        grouped_aggregate_part = self._describe_grouped_aggregation(tables, request)
+        if grouped_aggregate_part:
+            parts.append(grouped_aggregate_part)
+
         aggregate_part = self._describe_requested_aggregation(metrics, request)
-        if aggregate_part:
+        if aggregate_part and not grouped_aggregate_part:
             parts.append(aggregate_part)
+
+        if direct_aggregate_summary:
+            context_note = self._describe_context_note(context)
+            if context_note:
+                parts.append(context_note)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
 
         target_metric = next((metric for metric in metrics if metric.name.endswith("_sum")), None)
         if target_metric is not None and request.aggregation != "sum":
@@ -119,6 +132,51 @@ class ResultSummarizer:
             return f"Total {label} is {float(metric_value):.2f}."
         if request.aggregation == "count":
             return f"Count of {label} is {int(metric_value)}."
+        return None
+
+    def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if not request.target or not request.group_by or not request.aggregation:
+            return None
+
+        group_breakdown = self._table(tables, "group_breakdown")
+        if group_breakdown is None or group_breakdown.dataframe.empty:
+            return None
+
+        label = request.target.replace("_", " ")
+        dimension_label = ", ".join(request.group_by)
+        prefix = self._aggregation_prefix(request.aggregation, label, dimension_label)
+        if prefix is None:
+            return None
+
+        rows = group_breakdown.dataframe.head(5)
+        entries: list[str] = []
+        for _, row in rows.iterrows():
+            row_label = self._row_label(row, exclude={"target_total"})
+            if not row_label:
+                continue
+            value = float(row.get("target_total", 0.0) or 0.0)
+            entries.append(f"{row_label} = {value:.2f}")
+
+        if not entries:
+            return None
+
+        grouped_summary = f"{prefix}: {'; '.join(entries)}."
+        remaining_rows = len(group_breakdown.dataframe) - len(rows)
+        if remaining_rows > 0:
+            grouped_summary += f" {remaining_rows} more group{'s' if remaining_rows != 1 else ''} are available in group_breakdown."
+        return grouped_summary
+
+    def _aggregation_prefix(self, aggregation: str, label: str, dimension_label: str) -> str | None:
+        if aggregation == "sum":
+            return f"Total {label} by {dimension_label}"
+        if aggregation == "mean":
+            return f"Average {label} by {dimension_label}"
+        if aggregation == "max":
+            return f"Highest {label} by {dimension_label}"
+        if aggregation == "min":
+            return f"Lowest {label} by {dimension_label}"
+        if aggregation == "count":
+            return f"Count of {label} by {dimension_label}"
         return None
 
     def _describe_latest_trend_point(self, dataframe: pd.DataFrame, target: str | None) -> str:
