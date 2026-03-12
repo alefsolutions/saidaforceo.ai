@@ -29,6 +29,23 @@ class ResultSummarizer:
         if any(table.name == "time_trend" for table in tables):
             parts.append("A time trend table was generated.")
 
+        ranked_table = next((table for table in tables if table.name == "ranked_breakdown"), None)
+        if ranked_table is not None and not ranked_table.dataframe.empty:
+            first_row = ranked_table.dataframe.iloc[0].to_dict()
+            top_fields = [str(value) for key, value in first_row.items() if key not in {"rank", "target_total"}]
+            if top_fields:
+                parts.append(f"Top contributor: {' / '.join(top_fields)}.")
+
+        contribution_table = next((table for table in tables if table.name == "contribution_breakdown"), None)
+        if contribution_table is not None and not contribution_table.dataframe.empty:
+            strongest_drop = contribution_table.dataframe.iloc[0].to_dict()
+            if "delta" in strongest_drop:
+                parts.append(f"Largest contribution delta was {float(strongest_drop['delta']):.2f}.")
+
+        anomaly_table = next((table for table in tables if table.name == "anomaly_summary"), None)
+        if anomaly_table is not None:
+            parts.append(f"Anomaly candidates found: {len(anomaly_table.dataframe)}.")
+
         if warnings:
             parts.append(f"Warnings: {'; '.join(warnings)}.")
 

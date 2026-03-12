@@ -89,6 +89,27 @@ class Saida:
                             step.parameters.get("filters"),
                         )
                     )
+                elif step.action == "ranked_breakdown":
+                    tables.append(
+                        self.duckdb.ranked_breakdown(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"],
+                            step.parameters.get("filters"),
+                            step.parameters.get("limit", 5),
+                        )
+                    )
+                elif step.action == "contribution_breakdown":
+                    tables.append(
+                        self.duckdb.contribution_breakdown(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"],
+                            step.parameters.get("time_column"),
+                            step.parameters.get("time_reference"),
+                            step.parameters.get("filters"),
+                        )
+                    )
                 elif step.action == "period_comparison":
                     tables.append(
                         self.duckdb.period_comparison(
@@ -108,6 +129,14 @@ class Saida:
                     correlation_table = self.stats.correlation_matrix(dataset.data, step.parameters.get("target"))
                     if correlation_table is not None:
                         tables.append(correlation_table)
+                elif step.action == "anomaly_summary":
+                    anomaly_table = self.stats.anomaly_summary(
+                        dataset.data,
+                        step.parameters["target"],
+                        step.parameters.get("time_column"),
+                    )
+                    if anomaly_table is not None:
+                        tables.append(anomaly_table)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         summary = self.summarizer.summarize(plan, metrics, tables, warnings)

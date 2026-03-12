@@ -64,3 +64,36 @@ class StatsComputeEngine:
             name = "correlation_matrix"
 
         return TableArtifact(name=name, description=description, dataframe=table)
+
+    def anomaly_summary(self, dataframe: pd.DataFrame, target: str, time_column: str | None = None) -> TableArtifact | None:
+        """Flag simple z-score anomalies for a target series."""
+        if target not in dataframe.columns:
+            return None
+
+        prepared = dataframe[[target]].copy()
+        if time_column and time_column in dataframe.columns:
+            prepared[time_column] = pd.to_datetime(dataframe[time_column], errors="coerce")
+            prepared = prepared.dropna(subset=[time_column, target]).sort_values(time_column)
+            prepared["label"] = prepared[time_column].astype(str)
+        else:
+            prepared = prepared.dropna(subset=[target])
+            prepared["label"] = prepared.index.astype(str)
+
+        if len(prepared) < 3:
+            return None
+
+        series = prepared[target].astype(float)
+        std = float(series.std(ddof=0))
+        if std == 0.0:
+            return None
+
+        mean = float(series.mean())
+        prepared["z_score"] = (series - mean) / std
+        anomalies = prepared.loc[prepared["z_score"].abs() >= 1.8, ["label", target, "z_score"]].copy()
+        anomalies = anomalies.rename(columns={"label": "observation", target: "target_value"})
+
+        return TableArtifact(
+            name="anomaly_summary",
+            description=f"Z-score anomaly candidates for {target}.",
+            dataframe=anomalies.reset_index(drop=True),
+        )

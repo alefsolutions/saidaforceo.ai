@@ -73,6 +73,20 @@ class AnalysisPlanner:
                         description="Break down the target metric by requested dimensions.",
                     )
                 )
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_breakdown",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "filters": request.filters,
+                            "limit": 5,
+                        },
+                        description="Rank the largest grouped contributors.",
+                    )
+                )
             elif task_type == "diagnostic" and request.target and profile.dimension_columns:
                 steps.append(
                     PlanStep(
@@ -85,6 +99,36 @@ class AnalysisPlanner:
                             "filters": request.filters,
                         },
                         description="Break down the target metric by the leading dimension candidate.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="top_dimension_ranking",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": [profile.dimension_columns[0]],
+                            "filters": request.filters,
+                            "limit": 5,
+                        },
+                        description="Rank the leading grouped contributors for the diagnostic workflow.",
+                    )
+                )
+            if task_type == "diagnostic" and request.target and profile.dimension_columns:
+                steps.append(
+                    PlanStep(
+                        step_id="contribution_breakdown",
+                        tool_family="duckdb",
+                        action="contribution_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by or [profile.dimension_columns[0]],
+                            "time_column": profile.time_columns[0] if profile.time_columns else None,
+                            "time_reference": request.time_reference,
+                            "filters": request.filters,
+                        },
+                        description="Estimate group-level contribution changes for the diagnostic workflow.",
                     )
                 )
             steps.append(
@@ -113,6 +157,18 @@ class AnalysisPlanner:
                         action="target_correlation",
                         parameters={"target": request.target},
                         description="Measure correlations between the target and other numeric columns.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="anomaly_summary",
+                        tool_family="stats",
+                        action="anomaly_summary",
+                        parameters={
+                            "target": request.target,
+                            "time_column": profile.time_columns[0] if profile.time_columns else None,
+                        },
+                        description="Flag simple anomaly candidates for the target.",
                     )
                 )
 

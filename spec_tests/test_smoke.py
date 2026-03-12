@@ -113,6 +113,8 @@ def test_analyze_runs_end_to_end(tmp_path: Path) -> None:
     assert any(table.name == "time_trend" for table in result.tables)
     assert any(table.name == "numeric_summary" for table in result.tables)
     assert any(table.name == "period_comparison" for table in result.tables)
+    assert any(table.name == "contribution_breakdown" for table in result.tables)
+    assert any(table.name == "ranked_breakdown" for table in result.tables)
 
 
 def test_json_adapter_loads_records(tmp_path: Path) -> None:
@@ -175,6 +177,53 @@ def test_analyze_applies_group_and_filter_detection() -> None:
     assert grouped_tables
     grouped = grouped_tables[0].dataframe
     assert set(grouped["region"]) == {"West"}
+
+
+def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": [
+                "2026-02-01",
+                "2026-02-01",
+                "2026-03-01",
+                "2026-03-01",
+            ],
+            "revenue": [120, 80, 60, 40],
+            "region": ["West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Why did revenue drop in March by region?")
+
+    ranked_table = next(table for table in result.tables if table.name == "ranked_breakdown")
+    contribution_table = next(table for table in result.tables if table.name == "contribution_breakdown")
+
+    assert "rank" in ranked_table.dataframe.columns
+    assert "delta" in contribution_table.dataframe.columns
+    assert not contribution_table.dataframe.empty
+
+
+def test_analyze_returns_anomaly_summary_for_outlier_series() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": [
+                "2026-01-01",
+                "2026-02-01",
+                "2026-03-01",
+                "2026-04-01",
+                "2026-05-01",
+            ],
+            "revenue": [100, 105, 98, 102, 300],
+            "region": ["West", "West", "West", "West", "West"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show revenue trend")
+
+    anomaly_table = next(table for table in result.tables if table.name == "anomaly_summary")
+    assert len(anomaly_table.dataframe) >= 1
 
 
 def test_train_forecast_and_predict_raise_not_implemented() -> None:

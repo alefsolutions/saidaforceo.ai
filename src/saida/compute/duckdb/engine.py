@@ -94,6 +94,88 @@ class DuckDBComputeEngine:
             raise ComputeError(f"Failed to compute grouped breakdown for target '{target}'.") from exc
         return TableArtifact(name="group_breakdown", description=f"Grouped breakdown for {target}.", dataframe=grouped)
 
+    def ranked_breakdown(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_by: list[str],
+        filters: dict[str, str] | None = None,
+        limit: int = 5,
+    ) -> TableArtifact:
+        """Return the top grouped contributors by target total."""
+        grouped = self.group_breakdown(dataframe, target, group_by, filters).dataframe.head(limit).copy()
+        grouped["rank"] = range(1, len(grouped) + 1)
+        ordered_columns = ["rank", *group_by, "target_total"]
+        ranked = grouped.loc[:, [column for column in ordered_columns if column in grouped.columns]]
+        return TableArtifact(
+            name="ranked_breakdown",
+            description=f"Top {limit} grouped contributors for {target}.",
+            dataframe=ranked,
+        )
+
+    def contribution_breakdown(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_by: list[str],
+        time_column: str | None = None,
+        time_reference: dict[str, str] | None = None,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Measure group contribution deltas between adjacent periods when possible."""
+        if time_column is None or time_reference is None:
+            grouped = self.group_breakdown(dataframe, target, group_by, filters).dataframe.copy()
+            total = float(grouped["target_total"].sum()) if not grouped.empty else 0.0
+            grouped["share_of_total"] = grouped["target_total"].apply(lambda value: float(value / total) if total else 0.0)
+            return TableArtifact(
+                name="contribution_breakdown",
+                description=f"Share of total {target} by group.",
+                dataframe=grouped,
+            )
+
+        prepared = self._apply_filters(dataframe, filters).copy()
+        prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column, target])
+        prepared["period_month"] = prepared[time_column].dt.to_period("M")
+
+        if time_reference.get("type") != "month_name":
+            return self.contribution_breakdown(
+                dataframe,
+                target,
+                group_by,
+                time_column=None,
+                time_reference=None,
+                filters=filters,
+            )
+
+        requested_month = int(time_reference["month"])
+        matching_periods = prepared.loc[prepared["period_month"].dt.month == requested_month, "period_month"].sort_values()
+        if matching_periods.empty:
+            return TableArtifact(
+                name="contribution_breakdown",
+                description="No rows matched the requested period for contribution analysis.",
+                dataframe=pd.DataFrame(columns=[*group_by, "previous_total", "current_total", "delta"]),
+            )
+
+        current_period = matching_periods.iloc[-1]
+        previous_period = current_period - 1
+
+        current_slice = prepared.loc[prepared["period_month"] == current_period]
+        previous_slice = prepared.loc[prepared["period_month"] == previous_period]
+
+        current_grouped = current_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="current_total")
+        previous_grouped = previous_slice.groupby(group_by, dropna=False)[target].sum().reset_index(name="previous_total")
+
+        merged = current_grouped.merge(previous_grouped, on=group_by, how="outer").fillna(0.0)
+        merged["delta"] = merged["current_total"] - merged["previous_total"]
+        merged = merged.sort_values("delta")
+
+        return TableArtifact(
+            name="contribution_breakdown",
+            description=f"Contribution deltas for {target} between adjacent periods.",
+            dataframe=merged.reset_index(drop=True),
+        )
+
     def period_comparison(
         self,
         dataframe: pd.DataFrame,
