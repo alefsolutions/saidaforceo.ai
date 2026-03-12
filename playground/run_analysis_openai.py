@@ -1,6 +1,8 @@
 from pathlib import Path
 import os
 import sys
+import threading
+import time
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +17,16 @@ from saida.config import LlmConfig, SaidaConfig
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
+
+
+def _show_loader(stop_event: threading.Event) -> None:
+    frames = [".", "..", "..."]
+    index = 0
+    while not stop_event.is_set():
+        print(f"\rThinking{frames[index % len(frames)]}", end="", flush=True)
+        index += 1
+        time.sleep(0.4)
+    print("\r" + " " * 20 + "\r", end="", flush=True)
 
 
 def main() -> None:
@@ -58,7 +70,14 @@ def main() -> None:
         if question.lower() in EXIT_WORDS:
             break
 
-        result = engine.analyze(dataset, question)
+        stop_event = threading.Event()
+        loader_thread = threading.Thread(target=_show_loader, args=(stop_event,), daemon=True)
+        loader_thread.start()
+        try:
+            result = engine.analyze(dataset, question)
+        finally:
+            stop_event.set()
+            loader_thread.join()
 
         print(result.summary)
         if result.tables:
