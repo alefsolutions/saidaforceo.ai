@@ -19,7 +19,7 @@ SAIDA helps developers:
 - Train predictive models
 - Generate forecasts
 - Attach semantic context to datasets
-- Optionally use LLM reasoning for interpretation
+- Optionally use LLM reasoning for interpretation and responses.
 
 SAIDA is designed to be:
 
@@ -96,14 +96,14 @@ print(result.summary)
 
 ### Semantic Context
 
-Attach Markdown documentation to data sources to provide business meaning.
+Attach Markdown documentation to data sources to provide business meaning. This significantly improves responses especially if optional LLM is used for reasoning.
 
 ### Reasoning
 
 SAIDA keeps reasoning model-agnostic.
 
 - Any compatible LLM provider may be used
-- LLMs interpret computed results, not generate facts
+- **LLMs interpret computed results, not generate facts**
 - Core analytics workflows remain usable without an LLM
 
 ---
