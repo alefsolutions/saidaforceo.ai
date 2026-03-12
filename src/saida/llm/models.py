@@ -42,6 +42,7 @@ class ResponseContext:
     dataset_name: str
     task_type: str
     deterministic_summary: str
+    context_summary: str | None
     metric_lookup: dict[str, Any]
     table_index: dict[str, dict[str, Any]]
     warnings: list[str]

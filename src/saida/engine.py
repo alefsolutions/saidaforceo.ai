@@ -281,6 +281,7 @@ class Saida:
             tables,
             warnings,
             deterministic_summary,
+            dataset.context,
         )
         if llm_reasoning_warning is not None:
             warnings = self._merge_warnings(warnings, [llm_reasoning_warning])
@@ -400,6 +401,7 @@ class Saida:
         tables: list[TableArtifact],
         warnings: list[str],
         deterministic_summary: str,
+        context: SourceContext | None,
     ) -> tuple[str, str | None, str, str | None]:
         if not self.llm_provider or not self.config.llm.use_for_reasoning:
             return deterministic_summary, None, "deterministic", None
@@ -409,6 +411,7 @@ class Saida:
             dataset_name=profile.dataset_name,
             task_type=plan.task_type,
             deterministic_summary=deterministic_summary,
+            context_summary=self._context_summary(context),
             metric_lookup={metric.name: metric.value for metric in metrics},
             table_index={
                 table.name: {
@@ -450,6 +453,10 @@ class Saida:
             parts.append(f"identifiers={context.preferred_identifiers}")
         if context.caveats:
             parts.append(f"caveats={context.caveats}")
+        if context.freshness_notes:
+            parts.append(f"freshness_notes={context.freshness_notes}")
+        if context.business_rules:
+            parts.append(f"business_rules={context.business_rules}")
         return "; ".join(parts) if parts else None
 
     def _is_confident_deterministic_request(

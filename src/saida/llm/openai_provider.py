@@ -161,6 +161,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
             f"Dataset: {response_context.dataset_name}\n"
             f"Task type: {response_context.task_type}\n"
             f"Deterministic summary: {response_context.deterministic_summary}\n"
+            f"Context summary: {response_context.context_summary or 'none'}\n"
             f"Metric lookup: {json.dumps(response_context.metric_lookup, ensure_ascii=True)}\n"
             f"Table index: {json.dumps(response_context.table_index, ensure_ascii=True)}\n"
             f"Warnings: {json.dumps(response_context.warnings, ensure_ascii=True)}\n"

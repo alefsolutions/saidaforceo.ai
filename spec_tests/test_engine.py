@@ -44,6 +44,7 @@ class FakeLlmProvider(BaseLlmProvider):
         )
 
     def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        self.last_response_context = response_context
         return ResponseProposal(
             status="ready",
             summary=f"LLM_RESPONSE_V1: {response_context.deterministic_summary}",
@@ -288,6 +289,42 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
     assert "revenue_mean" in result.response["outputs"]["metric_lookup"]
     assert result.deterministic_summary is not None
     assert result.response["outputs"]["deterministic_summary"] == result.deterministic_summary
+
+
+def test_engine_passes_context_summary_into_llm_response_stage() -> None:
+    provider = FakeLlmProvider()
+    engine = Saida(llm_provider=provider)
+    engine.config.llm.enabled = True
+    context = engine.load_context(
+        """
+# Dataset: Sales
+
+## Caveats
+- refunds arrive one day late
+
+## Freshness Notes
+- source refreshes daily
+""".strip()
+    )
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "posted_at": ["2026-02-01", "2026-03-01"],
+                "revenue": [100.0, 90.0],
+                "region": ["West", "East"],
+            }
+        ),
+        context=context,
+    )
+
+    engine.analyze(dataset, "Why did revenue drop in March?")
+
+    assert provider.last_response_context is not None
+    assert provider.last_response_context.context_summary is not None
+    assert "caveats=['refunds arrive one day late']" in provider.last_response_context.context_summary
+    assert "freshness_notes=['source refreshes daily']" in provider.last_response_context.context_summary
 
 
 def test_llm_factory_builds_openai_provider() -> None:
