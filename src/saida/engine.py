@@ -59,7 +59,7 @@ class Saida:
 
         metrics = []
         tables = []
-        warnings = list(request_warnings) + list(plan.warnings)
+        warnings = self._merge_warnings(profile.warnings, request_warnings, plan.warnings)
 
         for step in plan.steps:
             if step.tool_family == "duckdb":
@@ -184,7 +184,7 @@ class Saida:
 
         summary = self.summarizer.summarize(plan, metrics, tables, warnings)
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
-        return self.results.build_analysis_result(summary, metrics, tables, warnings, plan, trace)
+        return self.results.build_analysis_result(summary, metrics, tables, warnings, plan, request, profile, trace)
 
     def train(
         self,
@@ -214,3 +214,11 @@ class Saida:
 
     def _trace(self, stage: str, message: str, payload: dict[str, object] | None = None) -> ExecutionTraceEvent:
         return ExecutionTraceEvent(stage=stage, message=message, payload=payload)
+
+    def _merge_warnings(self, *warning_groups: list[str]) -> list[str]:
+        merged: list[str] = []
+        for warning_group in warning_groups:
+            for warning in warning_group:
+                if warning not in merged:
+                    merged.append(warning)
+        return merged

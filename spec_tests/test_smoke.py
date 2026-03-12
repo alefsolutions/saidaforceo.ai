@@ -115,6 +115,12 @@ def test_analyze_runs_end_to_end(tmp_path: Path) -> None:
     assert any(table.name == "period_comparison" for table in result.tables)
     assert any(table.name == "contribution_breakdown" for table in result.tables)
     assert any(table.name == "ranked_breakdown" for table in result.tables)
+    assert result.artifacts["request"]["task_type_hint"] == "diagnostic"
+    assert "metric_lookup" in result.artifacts
+    assert "table_index" in result.artifacts
+    assert "time_trend" in result.artifacts["table_index"]
+    assert "trace_stages" in result.artifacts
+    assert result.artifacts["profile"]["dataset_name"] == "sales"
 
 
 def test_json_adapter_loads_records(tmp_path: Path) -> None:
@@ -206,6 +212,8 @@ def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
     assert "pct_change" in grouped_period_table.dataframe.columns
     assert "abs_delta" in mover_table.dataframe.columns
     assert not contribution_table.dataframe.empty
+    assert "plan_step_ids" in result.artifacts
+    assert "contribution_breakdown" in result.artifacts["plan_step_ids"]
 
 
 def test_analyze_returns_anomaly_summary_for_outlier_series() -> None:
