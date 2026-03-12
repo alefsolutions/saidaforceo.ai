@@ -24,4 +24,4 @@ def test_cli_analyze_runs_with_sample_csv(monkeypatch: object, tmp_path: Path, c
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "Completed a diagnostic analysis." in output
+    assert "Completed a diagnostic analysis for revenue on sales." in output

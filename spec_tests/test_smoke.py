@@ -106,9 +106,19 @@ def test_analyze_runs_end_to_end(tmp_path: Path) -> None:
     )
 
     dataset = CSVAdapter(csv_path).load()
+    dataset.context = SourceContextParser().parse(
+        """
+# Dataset: Sales
+
+## Caveats
+- refunds arrive one day late
+""".strip()
+    )
     result = Saida().analyze(dataset, "Why did revenue drop in March?")
 
     assert result.summary
+    assert "Revenue moved from 90.00 in 2026-02 to 80.00 in 2026-03" in result.summary
+    assert "Context caveat: refunds arrive one day late." in result.summary
     assert any(metric.name == "row_count" for metric in result.metrics)
     assert any(table.name == "time_trend" for table in result.tables)
     assert any(table.name == "numeric_summary" for table in result.tables)
@@ -214,6 +224,8 @@ def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
     assert not contribution_table.dataframe.empty
     assert "plan_step_ids" in result.artifacts
     assert "contribution_breakdown" in result.artifacts["plan_step_ids"]
+    assert "Top contributor was region=West" in result.summary
+    assert "Top mover was region=West" in result.summary
 
 
 def test_analyze_returns_anomaly_summary_for_outlier_series() -> None:

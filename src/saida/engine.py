@@ -182,7 +182,7 @@ class Saida:
                         tables.append(comparison_table)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
-        summary = self.summarizer.summarize(plan, metrics, tables, warnings)
+        summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
         return self.results.build_analysis_result(summary, metrics, tables, warnings, plan, request, profile, trace)
 
