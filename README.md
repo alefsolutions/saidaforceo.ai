@@ -50,6 +50,7 @@ Core project docs:
 
 - [Architecture](ARCHITECTURE.md)
 - [Engine Workflow](ENGINE_WORKFLOW.md)
+- [Compute Capabilities](COMPUTE_CAPABILITIES.md)
 - [Schema Spec](SCHEMA_SPEC.md)
 - [API Usage](API_USAGE.md)
 - [File Structure](FILE_STRUCTURE.md)
@@ -236,11 +237,20 @@ The current implementation is focused on the non-ML deterministic core:
 - request normalization with strict rules and an optional model-agnostic LLM interpretation layer
 - deterministic planning
 - DuckDB analytics for summaries, trends, grouped comparisons, contribution analysis, and top movers
-- deterministic statistical summaries, correlations, anomaly checks, and time-series diagnostics
+- deterministic statistical summaries, correlations, anomaly checks, time-series diagnostics, and formal statistical testing
 - working CLI commands for `version`, `profile`, and `analyze` against CSV input
 - optional model-agnostic LLM support for prompt interpretation and response wording, including an Ollama provider
 
 `train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
+
+Important current limits:
+
+- broader time execution beyond month-based requests is still limited
+- some natural-language ranking and comparison phrasing still needs expansion
+- automatic predictor selection for open-ended factor prompts is still limited
+- SAIDA is not an arbitrary natural-language SQL engine
+
+See [Compute Capabilities](COMPUTE_CAPABILITIES.md) for the current supported compute surface.
 
 ---
 

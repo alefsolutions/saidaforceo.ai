@@ -137,6 +137,8 @@ Stats - statistical routines
 
 ML - machine learning and forecasting
 
+The detailed current compute surface is documented in [Compute Capabilities](COMPUTE_CAPABILITIES.md).
+
 ---
 
 ### Reasoning Layer

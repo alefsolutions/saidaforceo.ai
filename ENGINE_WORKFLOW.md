@@ -190,10 +190,13 @@ Used for:
 - filtering
 - aggregations
 - direct aggregate value queries such as mean, max, min, sum, and count
+- row counts and grouped row-count ranking
+- distinct dimension value listing
 - grouped period comparisons
 - top movers
 - time bucketing
 - contribution analysis
+- time coverage inspection
 
 ### Stats compute
 Used for:
@@ -202,6 +205,7 @@ Used for:
 - anomaly detection
 - simple group mean comparison
 - time-series diagnostics
+- formal statistical testing and inference workflows
 
 ### ML compute
 Used for:
@@ -215,6 +219,8 @@ Important:
 - training should not run on ingestion by default
 - reuse saved models where possible
 - the current repo build keeps ML methods as placeholders and does not execute these stages yet
+
+For the detailed supported compute surface, see [Compute Capabilities](COMPUTE_CAPABILITIES.md).
 
 ---
 

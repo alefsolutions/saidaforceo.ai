@@ -24,6 +24,7 @@ print(result.to_response_dict())
 ```
 
 The current non-ML build supports month-based time references reliably. Quarter-style prompts are documented as future work.
+For the exact current compute surface, see [Compute Capabilities](COMPUTE_CAPABILITIES.md).
 
 When an optional LLM provider is configured, SAIDA lets the model interpret the prompt first and then validates that proposal against the dataset profile and context before creating an `AnalysisRequest`.
 The normalized request can now carry supported aggregation intents such as `sum`, `mean`, `max`, `min`, and `count`.
@@ -68,6 +69,13 @@ engine.analyze(dataset=dataset, question="Run ANOVA for revenue by team")
 engine.analyze(dataset=dataset, question="What is the 95% confidence interval for revenue?")
 engine.analyze(dataset=dataset, question="Is revenue by region statistically significant?")
 ```
+
+Current practical limits:
+
+- month-based time execution is the strongest supported time workflow
+- broader time phrasing and rolling-window execution are still limited
+- some natural-language ranking phrasing still needs expansion
+- open-ended prompts like `Which factors significantly affect customer satisfaction?` still work best when predictor columns are named explicitly
 
 Grouped aggregation prompts are summarized directly from grouped results, for example:
 

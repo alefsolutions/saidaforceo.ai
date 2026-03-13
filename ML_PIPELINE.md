@@ -12,6 +12,7 @@ Current repo status:
 - the current build raises clear not-implemented errors for these methods
 - deterministic analytics is the active implementation focus right now
 - `engine.capabilities()` reports these ML methods as unavailable
+- the current repo should be treated as a non-ML analytical engine first, with ML reserved for a later implementation pass
 
 ---
 
