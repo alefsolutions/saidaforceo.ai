@@ -2,6 +2,11 @@
 
 # SAIDA
 
+[![Version](https://img.shields.io/badge/version-0.1.0-1f6feb)](pyproject.toml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
+![V1 Status](https://img.shields.io/badge/v1-experimental-f59e0b)
+
 SAIDA is a **lightweight Python analytical reasoning library**.
 
 Core philosophy:
@@ -137,6 +142,48 @@ The repo also includes runnable examples:
 $env:PYTHONPATH="src"
 python examples/run_profile.py
 python examples/run_analysis.py
+```
+
+---
+
+# Testing
+
+The current repo includes a broad deterministic test suite covering:
+
+- adapters
+- context parsing
+- profiling
+- NLP normalization and validation
+- planning
+- DuckDB compute
+- stats compute
+- result packaging
+- summarization
+- engine orchestration
+- CLI behavior
+- playground behavior
+- end-to-end smoke workflows
+
+Current test types include:
+
+- unit tests
+- integration tests
+- regression tests
+- edge-case tests
+- extreme-case tests
+
+Latest verified local test run for this repo state:
+
+- total tests: `1181`
+- passed: `1181`
+- failed: `0`
+- success rate: `100%`
+- failure rate: `0%`
+
+Run locally with:
+
+```bash
+python -m pytest -q
 ```
 
 ---
