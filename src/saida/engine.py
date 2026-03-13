@@ -276,6 +276,88 @@ class Saida:
                     )
                     if comparison_table is not None:
                         tables.append(comparison_table)
+                elif step.action == "t_test":
+                    tables.append(
+                        self.stats.t_test(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "chi_square":
+                    comparison_columns = step.parameters.get("comparison_columns", [])
+                    tables.append(
+                        self.stats.chi_square_test(
+                            dataset.data,
+                            comparison_columns[0],
+                            comparison_columns[1],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "anova":
+                    tables.append(
+                        self.stats.anova_test(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "mann_whitney":
+                    tables.append(
+                        self.stats.mann_whitney_test(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "confidence_interval":
+                    tables.append(
+                        self.stats.confidence_interval(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("confidence_level", 0.95),
+                        )
+                    )
+                elif step.action == "regression_significance":
+                    tables.append(
+                        self.stats.regression_significance(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("feature_columns", []),
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "significance_inference":
+                    tables.append(
+                        self.stats.group_significance_test(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "power_analysis":
+                    tables.append(
+                        self.stats.power_analysis(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                        )
+                    )
+                elif step.action == "sample_size_estimate":
+                    tables.append(
+                        self.stats.sample_size_estimate(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["group_by"][0],
+                            step.parameters.get("alpha", 0.05),
+                            step.parameters.get("desired_power", 0.80),
+                        )
+                    )
             elif step.tool_family == "metadata":
                 tables.append(self._metadata_table(step.action, profile))
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))

@@ -530,6 +530,21 @@ def test_analyze_returns_time_coverage_date_range() -> None:
     assert any(table.name == "time_coverage" for table in result.tables)
 
 
+def test_analyze_supports_p_value_driven_inference_workflow() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "region": ["North"] * 6 + ["South"] * 6,
+            "revenue": [100, 104, 98, 102, 101, 99, 135, 138, 132, 140, 136, 134],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is revenue by region statistically significant?")
+
+    assert "Welch t-test for revenue by region" in result.summary
+    assert any(table.name == "significance_test" for table in result.tables)
+
+
 def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
     dataframe = pd.DataFrame({"revenue": [90.0, 100.0], "segment": ["Retail", "Online"]})
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)

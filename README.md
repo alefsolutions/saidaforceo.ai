@@ -168,6 +168,15 @@ python examples/run_analysis.py
 - segmentation
 - anomaly detection
 - correlation analysis
+- statistical testing:
+  - t-tests
+  - chi-square tests
+  - ANOVA
+  - Mann-Whitney tests
+  - confidence intervals
+  - regression significance testing
+  - p-value-driven inference workflows
+  - statistical power and sample-size reasoning
 - time-series analysis
 - grouped period comparison
 - top-mover diagnostics

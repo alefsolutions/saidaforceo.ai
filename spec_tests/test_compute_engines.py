@@ -19,6 +19,19 @@ def build_dataframe() -> pd.DataFrame:
     )
 
 
+def build_statistical_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "team": ["Alpha"] * 6 + ["Beta"] * 6 + ["Gamma"] * 6,
+            "segment": ["Retail", "Retail", "Wholesale", "Wholesale", "Retail", "Wholesale"] * 3,
+            "region": ["North", "North", "South", "South", "North", "South"] * 3,
+            "revenue": [100, 104, 98, 102, 101, 99, 135, 138, 132, 140, 136, 134, 160, 158, 162, 159, 161, 157],
+            "cost": [70, 72, 69, 71, 70, 68, 88, 90, 87, 91, 89, 88, 95, 94, 96, 95, 97, 93],
+            "units": [10, 11, 10, 12, 11, 10, 14, 15, 14, 15, 16, 14, 18, 17, 19, 18, 20, 17],
+        }
+    )
+
+
 def test_duckdb_period_and_contribution_breakdown() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()
@@ -382,6 +395,96 @@ def test_stats_group_mean_comparison_rejects_same_group_and_target() -> None:
 
     with pytest.raises(ComputeError, match="different from the target"):
         engine.group_mean_comparison(build_dataframe(), target="revenue", group_column="revenue")
+
+
+def test_stats_t_test_returns_significance_payload() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.t_test(build_statistical_dataframe(), target="revenue", group_column="region")
+
+    assert table.name == "t_test"
+    assert "p_value" in table.dataframe.columns
+    assert "is_significant" in table.dataframe.columns
+
+
+def test_stats_chi_square_test_returns_independence_result() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.chi_square_test(build_statistical_dataframe(), left_column="segment", right_column="region")
+
+    assert table.name == "chi_square_test"
+    assert table.dataframe.iloc[0]["degrees_of_freedom"] >= 1
+
+
+def test_stats_anova_test_returns_group_significance() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.anova_test(build_statistical_dataframe(), target="revenue", group_column="team")
+
+    assert table.name == "anova_test"
+    assert table.dataframe.iloc[0]["group_count"] == 3
+
+
+def test_stats_mann_whitney_test_returns_non_parametric_result() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.mann_whitney_test(build_statistical_dataframe(), target="revenue", group_column="region")
+
+    assert table.name == "mann_whitney_test"
+    assert "p_value" in table.dataframe.columns
+
+
+def test_stats_confidence_interval_returns_bounds() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.confidence_interval(build_statistical_dataframe(), target="revenue", confidence_level=0.95)
+
+    assert table.name == "confidence_interval"
+    assert table.dataframe.iloc[0]["lower_bound"] < table.dataframe.iloc[0]["upper_bound"]
+
+
+def test_stats_regression_significance_returns_coefficients() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.regression_significance(
+        build_statistical_dataframe(),
+        target="revenue",
+        feature_columns=["cost", "units"],
+    )
+
+    assert table.name == "regression_significance"
+    assert set(table.dataframe["parameter"]) >= {"const", "cost", "units"}
+
+
+def test_stats_power_analysis_returns_power_estimate() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.power_analysis(build_statistical_dataframe(), target="revenue", group_column="region")
+
+    assert table.name == "power_analysis"
+    assert 0.0 <= table.dataframe.iloc[0]["power"] <= 1.0
+
+
+def test_stats_sample_size_estimate_returns_required_group_size() -> None:
+    engine = StatsComputeEngine()
+
+    table = engine.sample_size_estimate(
+        build_statistical_dataframe(),
+        target="revenue",
+        group_column="region",
+        desired_power=0.9,
+    )
+
+    assert table.name == "sample_size_estimate"
+    assert table.dataframe.iloc[0]["required_sample_size_per_group"] > 0
+
+
+def test_stats_power_analysis_rejects_zero_effect_size() -> None:
+    engine = StatsComputeEngine()
+    dataframe = pd.DataFrame({"region": ["North"] * 4 + ["South"] * 4, "revenue": [100, 100, 100, 100, 100, 100, 100, 100]})
+
+    with pytest.raises(ComputeError, match="non-zero observed effect size"):
+        engine.power_analysis(dataframe, target="revenue", group_column="region")
 
 
 _DUCKDB_SUMMARY_CASES = [

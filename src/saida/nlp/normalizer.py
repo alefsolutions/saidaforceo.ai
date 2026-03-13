@@ -51,6 +51,16 @@ TIME_COVERAGE_RANGE_KEYWORDS = {
     "earliest and latest date",
     "from when to when",
 }
+STATISTICAL_TEST_KEYWORDS = {
+    "t_test": {"t-test", "t test", "ttest"},
+    "chi_square": {"chi-square", "chi square", "chisquare"},
+    "anova": {"anova"},
+    "mann_whitney": {"mann-whitney", "mann whitney", "mannwhitney"},
+    "confidence_interval": {"confidence interval", "confidence intervals"},
+    "regression_significance": {"regression significance", "significant predictors", "significant coefficients"},
+    "power_analysis": {"statistical power", "power analysis"},
+    "sample_size_estimate": {"sample size", "required sample size"},
+}
 AGGREGATION_KEYWORDS = {
     "mean": {"average", "mean", "avg"},
     "max": {"highest", "maximum", "max", "top", "largest", "best"},
@@ -101,11 +111,24 @@ class RequestNormalizer:
         group_by = self._extract_group_by(question, profile)
         filters = self._extract_filters(question, profile, context)
         options = self._build_request_options(dataset.name, intent_name)
+        self._apply_statistical_options(question, profile, options)
+        if options.get("statistical_test"):
+            task_type_hint = "statistical"
+        if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
+            comparison_columns = list(options["comparison_columns"])
+            target = comparison_columns[0]
+            group_by = comparison_columns[1:2]
+        if options.get("statistical_test") == "regression_significance" and options.get("feature_columns"):
+            named_columns = self._extract_named_columns(question, profile)
+            if named_columns:
+                target = named_columns[0]
         if intent_name == "time_coverage":
             options["time_coverage_mode"] = self._time_coverage_mode(question)
             target = None
             aggregation = None
             group_by = None
+        if options.get("statistical_test") in {"chi_square", "regression_significance"}:
+            group_by = self._extract_statistical_group_by(question, profile, target)
 
         if intent_name == "representation_ranking" and target is not None:
             group_by = [target]
@@ -175,11 +198,24 @@ class RequestNormalizer:
         horizon = proposal.horizon if proposal.horizon and proposal.horizon > 0 else rule_horizon
 
         options = self._build_request_options(dataset.name, rule_intent_name)
+        self._apply_statistical_options(question, profile, options)
+        if options.get("statistical_test"):
+            task_type_hint = "statistical"
+        if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
+            comparison_columns = list(options["comparison_columns"])
+            target = comparison_columns[0]
+            group_by = comparison_columns[1:2]
+        if options.get("statistical_test") == "regression_significance" and options.get("feature_columns"):
+            named_columns = self._extract_named_columns(question, profile)
+            if named_columns:
+                target = named_columns[0]
         if rule_intent_name == "time_coverage":
             options["time_coverage_mode"] = self._time_coverage_mode(question)
             target = None
             aggregation = None
             group_by = None
+        if options.get("statistical_test") in {"chi_square", "regression_significance"}:
+            group_by = self._extract_statistical_group_by(question, profile, target)
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
@@ -322,6 +358,17 @@ class RequestNormalizer:
         matches = list(dict.fromkeys(matches))
         return matches or None
 
+    def _extract_statistical_group_by(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+    ) -> list[str] | None:
+        named_columns = self._extract_named_columns(question, profile)
+        if not named_columns:
+            return None
+        return [column for column in named_columns if column != target] or None
+
     def _extract_filters(
         self,
         question: str,
@@ -376,6 +423,66 @@ class RequestNormalizer:
         if aggregation in AGGREGATION_KEYWORDS:
             return aggregation
         return None
+
+    def _apply_statistical_options(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        options: dict[str, object],
+    ) -> None:
+        statistical_test = self._extract_statistical_test(question)
+        if statistical_test is None and "statistically significant" in question.lower():
+            statistical_test = "significance_inference"
+        if statistical_test is None:
+            return
+
+        options["statistical_test"] = statistical_test
+        options["alpha"] = self._extract_alpha(question)
+        options["confidence_level"] = self._extract_confidence_level(question)
+        options["desired_power"] = self._extract_desired_power(question)
+
+        named_columns = self._extract_named_columns(question, profile)
+        if statistical_test == "chi_square" and len(named_columns) >= 2:
+            options["comparison_columns"] = named_columns[:2]
+        if statistical_test == "regression_significance" and len(named_columns) >= 2:
+            options["feature_columns"] = named_columns[1:]
+
+    def _extract_statistical_test(self, question: str) -> str | None:
+        lowered = question.lower()
+        for test_name, keywords in STATISTICAL_TEST_KEYWORDS.items():
+            if any(keyword in lowered for keyword in keywords):
+                return test_name
+        return None
+
+    def _extract_named_columns(self, question: str, profile: DatasetProfile) -> list[str]:
+        lowered = question.lower()
+        matches: list[str] = []
+        for column in profile.columns:
+            if re.search(rf"\b{re.escape(column.name.lower())}\b", lowered):
+                matches.append(column.name)
+        return list(dict.fromkeys(matches))
+
+    def _extract_alpha(self, question: str) -> float:
+        lowered = question.lower()
+        if "1%" in lowered:
+            return 0.01
+        if "10%" in lowered:
+            return 0.10
+        return 0.05
+
+    def _extract_confidence_level(self, question: str) -> float:
+        match = re.search(r"\b(\d{2})%\s+confidence\b", question.lower())
+        if not match:
+            return 0.95
+        level = int(match.group(1)) / 100.0
+        return level if 0.0 < level < 1.0 else 0.95
+
+    def _extract_desired_power(self, question: str) -> float:
+        match = re.search(r"\b(\d{2})%\s+power\b", question.lower())
+        if not match:
+            return 0.80
+        power = int(match.group(1)) / 100.0
+        return power if 0.0 < power < 1.0 else 0.80
 
     def _detect_intent_name(self, question: str, profile: DatasetProfile) -> str | None:
         lowered = question.lower()

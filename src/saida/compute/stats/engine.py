@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pandas as pd
+import statsmodels.api as sm
 from scipy import stats
+from statsmodels.stats.power import TTestIndPower
 
 from saida.exceptions import ComputeError
 from saida.schemas import TableArtifact
@@ -11,6 +13,10 @@ from saida.schemas import TableArtifact
 
 class StatsComputeEngine:
     """Run simple statistical routines over a pandas DataFrame."""
+
+    DEFAULT_ALPHA = 0.05
+    DEFAULT_CONFIDENCE_LEVEL = 0.95
+    DEFAULT_POWER = 0.80
 
     def missingness_summary(self, dataframe: pd.DataFrame) -> TableArtifact:
         """Return a null summary for each column."""
@@ -223,3 +229,367 @@ class StatsComputeEngine:
             description=f"Z-score anomaly candidates for {target}.",
             dataframe=anomalies.reset_index(drop=True),
         )
+
+    def t_test(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Run a Welch two-sample t-test across exactly two groups."""
+        left_name, left_values, right_name, right_values = self._two_group_numeric_values(dataframe, target, group_column)
+        statistic, p_value = stats.ttest_ind(left_values, right_values, equal_var=False)
+        return self._test_result_table(
+            name="t_test",
+            description=f"Welch t-test for {target} by {group_column}.",
+            payload={
+                "test_name": "welch_t_test",
+                "target": target,
+                "group_column": group_column,
+                "left_group": left_name,
+                "right_group": right_name,
+                "left_count": int(len(left_values)),
+                "right_count": int(len(right_values)),
+                "left_mean": float(left_values.mean()),
+                "right_mean": float(right_values.mean()),
+                "statistic": float(statistic),
+                "p_value": float(p_value),
+                "alpha": float(alpha),
+            },
+        )
+
+    def mann_whitney_test(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Run a Mann-Whitney U test across exactly two groups."""
+        left_name, left_values, right_name, right_values = self._two_group_numeric_values(dataframe, target, group_column)
+        statistic, p_value = stats.mannwhitneyu(left_values, right_values, alternative="two-sided")
+        return self._test_result_table(
+            name="mann_whitney_test",
+            description=f"Mann-Whitney U test for {target} by {group_column}.",
+            payload={
+                "test_name": "mann_whitney_u",
+                "target": target,
+                "group_column": group_column,
+                "left_group": left_name,
+                "right_group": right_name,
+                "left_count": int(len(left_values)),
+                "right_count": int(len(right_values)),
+                "left_median": float(left_values.median()),
+                "right_median": float(right_values.median()),
+                "statistic": float(statistic),
+                "p_value": float(p_value),
+                "alpha": float(alpha),
+            },
+        )
+
+    def anova_test(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Run a one-way ANOVA across two or more groups."""
+        grouped_values = self._grouped_numeric_values(dataframe, target, group_column, minimum_count=2)
+        if len(grouped_values) < 2:
+            raise ComputeError("ANOVA requires at least two groups with two or more observations.")
+
+        statistic, p_value = stats.f_oneway(*(values for _, values in grouped_values))
+        payload = {
+            "test_name": "anova",
+            "target": target,
+            "group_column": group_column,
+            "group_count": int(len(grouped_values)),
+            "statistic": float(statistic),
+            "p_value": float(p_value),
+            "alpha": float(alpha),
+        }
+        for index, (group_name, values) in enumerate(grouped_values, start=1):
+            payload[f"group_{index}_name"] = group_name
+            payload[f"group_{index}_count"] = int(len(values))
+            payload[f"group_{index}_mean"] = float(values.mean())
+        return self._test_result_table(
+            name="anova_test",
+            description=f"One-way ANOVA for {target} by {group_column}.",
+            payload=payload,
+        )
+
+    def chi_square_test(
+        self,
+        dataframe: pd.DataFrame,
+        left_column: str,
+        right_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Run a chi-square independence test between two categorical columns."""
+        self._require_columns(dataframe, [left_column, right_column])
+        prepared = dataframe[[left_column, right_column]].dropna()
+        if prepared.empty:
+            raise ComputeError("Chi-square testing requires non-null categorical observations.")
+
+        contingency = pd.crosstab(prepared[left_column], prepared[right_column])
+        if contingency.shape[0] < 2 or contingency.shape[1] < 2:
+            raise ComputeError("Chi-square testing requires at least two categories in each column.")
+
+        statistic, p_value, degrees_of_freedom, _ = stats.chi2_contingency(contingency)
+        result = self._test_result_table(
+            name="chi_square_test",
+            description=f"Chi-square independence test for {left_column} and {right_column}.",
+            payload={
+                "test_name": "chi_square",
+                "left_column": left_column,
+                "right_column": right_column,
+                "statistic": float(statistic),
+                "p_value": float(p_value),
+                "degrees_of_freedom": int(degrees_of_freedom),
+                "alpha": float(alpha),
+                "row_category_count": int(contingency.shape[0]),
+                "column_category_count": int(contingency.shape[1]),
+            },
+        )
+        result.dataframe["observed_rows"] = int(len(prepared))
+        return result
+
+    def confidence_interval(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+    ) -> TableArtifact:
+        """Return a confidence interval for the mean of a numeric target."""
+        series = self._numeric_series(dataframe, target)
+        if len(series) < 2:
+            raise ComputeError("Confidence interval analysis requires at least two numeric observations.")
+
+        mean_value = float(series.mean())
+        standard_error = float(stats.sem(series))
+        interval = stats.t.interval(confidence_level, len(series) - 1, loc=mean_value, scale=standard_error)
+        return TableArtifact(
+            name="confidence_interval",
+            description=f"{confidence_level:.0%} confidence interval for {target}.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "target": target,
+                        "confidence_level": float(confidence_level),
+                        "sample_size": int(len(series)),
+                        "sample_mean": mean_value,
+                        "standard_error": standard_error,
+                        "lower_bound": float(interval[0]),
+                        "upper_bound": float(interval[1]),
+                        "margin_of_error": float(interval[1] - mean_value),
+                    }
+                ]
+            ),
+        )
+
+    def regression_significance(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        feature_columns: list[str],
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Fit a simple OLS model and return coefficient significance."""
+        self._require_columns(dataframe, [target, *feature_columns])
+        prepared = dataframe[[target, *feature_columns]].copy()
+        prepared[target] = pd.to_numeric(prepared[target], errors="coerce")
+        for feature_column in feature_columns:
+            prepared[feature_column] = pd.to_numeric(prepared[feature_column], errors="coerce")
+        prepared = prepared.dropna()
+        if prepared.empty or len(prepared) < len(feature_columns) + 2:
+            raise ComputeError("Regression significance testing requires enough complete numeric observations.")
+
+        design_matrix = sm.add_constant(prepared[feature_columns], has_constant="add")
+        model = sm.OLS(prepared[target], design_matrix).fit()
+        intervals = model.conf_int(alpha=alpha)
+
+        rows: list[dict[str, object]] = []
+        for parameter_name in model.params.index:
+            rows.append(
+                {
+                    "parameter": str(parameter_name),
+                    "coefficient": float(model.params[parameter_name]),
+                    "std_error": float(model.bse[parameter_name]),
+                    "t_value": float(model.tvalues[parameter_name]),
+                    "p_value": float(model.pvalues[parameter_name]),
+                    "lower_bound": float(intervals.loc[parameter_name, 0]),
+                    "upper_bound": float(intervals.loc[parameter_name, 1]),
+                    "alpha": float(alpha),
+                    "is_significant": bool(model.pvalues[parameter_name] < alpha),
+                }
+            )
+
+        return TableArtifact(
+            name="regression_significance",
+            description=f"OLS coefficient significance for {target}.",
+            dataframe=pd.DataFrame(rows),
+        )
+
+    def group_significance_test(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Choose an appropriate group significance test based on group count."""
+        grouped_values = self._grouped_numeric_values(dataframe, target, group_column, minimum_count=2)
+        if len(grouped_values) < 2:
+            raise ComputeError("Statistical significance testing requires at least two populated groups.")
+        if len(grouped_values) == 2:
+            result = self.t_test(dataframe, target, group_column, alpha)
+            result.name = "significance_test"
+            result.description = f"Significance inference for {target} by {group_column} using a Welch t-test."
+            return result
+
+        result = self.anova_test(dataframe, target, group_column, alpha)
+        result.name = "significance_test"
+        result.description = f"Significance inference for {target} by {group_column} using ANOVA."
+        return result
+
+    def power_analysis(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+    ) -> TableArtifact:
+        """Estimate observed power for a two-group mean comparison."""
+        left_name, left_values, right_name, right_values = self._two_group_numeric_values(dataframe, target, group_column)
+        effect_size = self._cohens_d(left_values, right_values)
+        if effect_size == 0.0:
+            raise ComputeError("Power analysis requires a non-zero observed effect size.")
+
+        power_model = TTestIndPower()
+        actual_power = power_model.power(
+            effect_size=abs(effect_size),
+            nobs1=len(left_values),
+            alpha=alpha,
+            ratio=len(right_values) / len(left_values),
+        )
+        return TableArtifact(
+            name="power_analysis",
+            description=f"Observed power for {target} by {group_column}.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "target": target,
+                        "group_column": group_column,
+                        "left_group": left_name,
+                        "right_group": right_name,
+                        "effect_size": float(effect_size),
+                        "alpha": float(alpha),
+                        "power": float(actual_power),
+                        "left_count": int(len(left_values)),
+                        "right_count": int(len(right_values)),
+                    }
+                ]
+            ),
+        )
+
+    def sample_size_estimate(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        alpha: float = DEFAULT_ALPHA,
+        desired_power: float = DEFAULT_POWER,
+    ) -> TableArtifact:
+        """Estimate per-group sample size for a two-group mean comparison."""
+        left_name, left_values, right_name, right_values = self._two_group_numeric_values(dataframe, target, group_column)
+        effect_size = self._cohens_d(left_values, right_values)
+        if effect_size == 0.0:
+            raise ComputeError("Sample size estimation requires a non-zero observed effect size.")
+
+        power_model = TTestIndPower()
+        required_sample_size = power_model.solve_power(
+            effect_size=abs(effect_size),
+            power=desired_power,
+            alpha=alpha,
+            ratio=1.0,
+        )
+        return TableArtifact(
+            name="sample_size_estimate",
+            description=f"Estimated per-group sample size for {target} by {group_column}.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "target": target,
+                        "group_column": group_column,
+                        "left_group": left_name,
+                        "right_group": right_name,
+                        "effect_size": float(effect_size),
+                        "alpha": float(alpha),
+                        "desired_power": float(desired_power),
+                        "required_sample_size_per_group": float(required_sample_size),
+                    }
+                ]
+            ),
+        )
+
+    def _test_result_table(self, name: str, description: str, payload: dict[str, object]) -> TableArtifact:
+        p_value = float(payload["p_value"])
+        alpha = float(payload["alpha"])
+        payload["is_significant"] = bool(p_value < alpha)
+        payload["decision"] = "reject_null" if p_value < alpha else "fail_to_reject_null"
+        return TableArtifact(name=name, description=description, dataframe=pd.DataFrame([payload]))
+
+    def _require_columns(self, dataframe: pd.DataFrame, column_names: list[str]) -> None:
+        missing_columns = [column_name for column_name in column_names if column_name not in dataframe.columns]
+        if missing_columns:
+            joined = ", ".join(missing_columns)
+            raise ComputeError(f"Required columns are missing from the dataset: {joined}")
+
+    def _numeric_series(self, dataframe: pd.DataFrame, target: str) -> pd.Series:
+        if target not in dataframe.columns:
+            raise ComputeError(f"Target column '{target}' does not exist in the dataset.")
+        series = pd.to_numeric(dataframe[target], errors="coerce").dropna()
+        if series.empty:
+            raise ComputeError(f"Target column '{target}' has no numeric values for statistical testing.")
+        return series
+
+    def _grouped_numeric_values(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+        minimum_count: int,
+    ) -> list[tuple[str, pd.Series]]:
+        self._require_columns(dataframe, [target, group_column])
+        prepared = dataframe[[target, group_column]].copy()
+        prepared[target] = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.dropna(subset=[target, group_column])
+        grouped_values: list[tuple[str, pd.Series]] = []
+        for group_name, group_frame in prepared.groupby(group_column, dropna=False):
+            values = group_frame[target].astype(float)
+            if len(values) >= minimum_count:
+                grouped_values.append((str(group_name), values.reset_index(drop=True)))
+        grouped_values.sort(key=lambda item: item[0])
+        return grouped_values
+
+    def _two_group_numeric_values(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        group_column: str,
+    ) -> tuple[str, pd.Series, str, pd.Series]:
+        grouped_values = self._grouped_numeric_values(dataframe, target, group_column, minimum_count=2)
+        if len(grouped_values) != 2:
+            raise ComputeError("This statistical test requires exactly two groups with two or more observations.")
+        left_name, left_values = grouped_values[0]
+        right_name, right_values = grouped_values[1]
+        return left_name, left_values, right_name, right_values
+
+    def _cohens_d(self, left_values: pd.Series, right_values: pd.Series) -> float:
+        pooled_deviation = (((len(left_values) - 1) * left_values.var(ddof=1)) + ((len(right_values) - 1) * right_values.var(ddof=1)))
+        pooled_deviation /= (len(left_values) + len(right_values) - 2)
+        if pooled_deviation <= 0.0:
+            return 0.0
+        return float((left_values.mean() - right_values.mean()) / pooled_deviation**0.5)

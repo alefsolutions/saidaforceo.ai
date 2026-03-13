@@ -50,6 +50,13 @@ class ResultSummarizer:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        statistical_part = self._describe_statistical_result(tables)
+        if statistical_part:
+            parts.append(statistical_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         representation_part = self._describe_representation_ranking(tables, request)
         if representation_part:
             parts.append(representation_part)
@@ -251,6 +258,70 @@ class ResultSummarizer:
                 return "No valid dates were detected in the dataset."
             row = dataframe.iloc[0]
             return f"The data covers {row['earliest_date']} to {row['latest_date']}."
+        return None
+
+    def _describe_statistical_result(self, tables: list[TableArtifact]) -> str | None:
+        statistical_tables = {
+            "t_test",
+            "chi_square_test",
+            "anova_test",
+            "mann_whitney_test",
+            "confidence_interval",
+            "regression_significance",
+            "significance_test",
+            "power_analysis",
+            "sample_size_estimate",
+        }
+        statistical_table = next((table for table in tables if table.name in statistical_tables), None)
+        if statistical_table is None or statistical_table.dataframe.empty:
+            return None
+
+        row = statistical_table.dataframe.iloc[0]
+        if statistical_table.name in {"t_test", "significance_test"} and row.get("test_name") == "welch_t_test":
+            conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
+            return (
+                f"Welch t-test for {row['target']} by {row['group_column']} compared {row['left_group']} and {row['right_group']}: "
+                f"p={float(row['p_value']):.4f}, which is {conclusion} at alpha={float(row['alpha']):.2f}."
+            )
+        if statistical_table.name in {"anova_test", "significance_test"} and row.get("test_name") == "anova":
+            conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
+            return (
+                f"ANOVA for {row['target']} by {row['group_column']} returned p={float(row['p_value']):.4f}, "
+                f"which is {conclusion} at alpha={float(row['alpha']):.2f}."
+            )
+        if statistical_table.name == "chi_square_test":
+            conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
+            return (
+                f"Chi-square test for {row['left_column']} and {row['right_column']} returned p={float(row['p_value']):.4f}, "
+                f"which is {conclusion} at alpha={float(row['alpha']):.2f}."
+            )
+        if statistical_table.name == "mann_whitney_test":
+            conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
+            return (
+                f"Mann-Whitney test for {row['target']} by {row['group_column']} returned p={float(row['p_value']):.4f}, "
+                f"which is {conclusion} at alpha={float(row['alpha']):.2f}."
+            )
+        if statistical_table.name == "confidence_interval":
+            return (
+                f"The {float(row['confidence_level']):.0%} confidence interval for {row['target']} is "
+                f"[{float(row['lower_bound']):.2f}, {float(row['upper_bound']):.2f}] around a sample mean of {float(row['sample_mean']):.2f}."
+            )
+        if statistical_table.name == "regression_significance":
+            significant_rows = statistical_table.dataframe.loc[statistical_table.dataframe["is_significant"] == True]
+            predictors = [str(value) for value in significant_rows["parameter"].tolist() if value != "const"]
+            if predictors:
+                return f"Regression significance identified these significant predictors: {', '.join(predictors)}."
+            return "Regression significance did not identify any statistically significant predictors beyond the intercept."
+        if statistical_table.name == "power_analysis":
+            return (
+                f"Observed statistical power for {row['target']} by {row['group_column']} is {float(row['power']):.2f} "
+                f"with effect size {float(row['effect_size']):.2f}."
+            )
+        if statistical_table.name == "sample_size_estimate":
+            return (
+                f"Estimated sample size per group for {row['target']} by {row['group_column']} is "
+                f"{float(row['required_sample_size_per_group']):.1f} at alpha={float(row['alpha']):.2f} and power={float(row['desired_power']):.2f}."
+            )
         return None
 
     def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:

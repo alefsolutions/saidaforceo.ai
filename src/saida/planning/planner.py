@@ -33,6 +33,28 @@ class AnalysisPlanner:
             warnings.append("No target was provided; using the first measure column.")
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
+            statistical_test = request.options.get("statistical_test")
+            if task_type == "statistical" and statistical_test:
+                steps.append(
+                    PlanStep(
+                        step_id=statistical_test,
+                        tool_family="stats",
+                        action=statistical_test,
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "filters": request.filters,
+                            "alpha": request.options.get("alpha", 0.05),
+                            "confidence_level": request.options.get("confidence_level", 0.95),
+                            "desired_power": request.options.get("desired_power", 0.80),
+                            "feature_columns": request.options.get("feature_columns", []),
+                            "comparison_columns": request.options.get("comparison_columns", []),
+                        },
+                        description=f"Run the deterministic {statistical_test} workflow.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.intent_name in {"column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
                 steps.append(
                     PlanStep(
@@ -421,6 +443,19 @@ class AnalysisPlanner:
             raise PlanningError("Representation ranking requires a dimension target.")
         if request.intent_name == "time_coverage" and not profile.time_columns:
             raise PlanningError("Time coverage analysis requires a datetime column.")
+        if request.options.get("statistical_test") == "chi_square":
+            comparison_columns = request.options.get("comparison_columns", [])
+            if len(comparison_columns) < 2:
+                raise PlanningError("Chi-square testing requires two categorical columns.")
+        if request.options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"}:
+            if request.target is None or not request.group_by:
+                raise PlanningError("Group-based statistical testing requires a numeric target and one grouping column.")
+        if request.options.get("statistical_test") == "confidence_interval" and request.target is None:
+            raise PlanningError("Confidence interval analysis requires a numeric target.")
+        if request.options.get("statistical_test") == "regression_significance":
+            feature_columns = request.options.get("feature_columns", [])
+            if request.target is None or not feature_columns:
+                raise PlanningError("Regression significance testing requires a target and at least one feature column.")
 
         if request.group_by:
             invalid_groups = [column for column in request.group_by if column not in profile_columns]
@@ -468,4 +503,6 @@ class AnalysisPlanner:
             rationale += f" Intent: {request.intent_name}."
         if request.intent_name == "time_coverage":
             rationale += f" Time coverage mode: {request.options.get('time_coverage_mode', 'years_present')}."
+        if request.options.get("statistical_test"):
+            rationale += f" Statistical test: {request.options['statistical_test']}."
         return rationale

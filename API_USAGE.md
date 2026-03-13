@@ -59,6 +59,16 @@ engine.analyze(dataset=dataset, question="Which segment is the least represented
 engine.analyze(dataset=dataset, question="What are the columns in the sales data?")
 ```
 
+Statistical workflows are also supported:
+
+```python
+engine.analyze(dataset=dataset, question="Run a t-test for revenue by region")
+engine.analyze(dataset=dataset, question="Run chi-square test for segment and region")
+engine.analyze(dataset=dataset, question="Run ANOVA for revenue by team")
+engine.analyze(dataset=dataset, question="What is the 95% confidence interval for revenue?")
+engine.analyze(dataset=dataset, question="Is revenue by region statistically significant?")
+```
+
 Grouped aggregation prompts are summarized directly from grouped results, for example:
 
 ```python
